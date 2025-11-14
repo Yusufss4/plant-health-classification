@@ -131,3 +131,41 @@ This project is for educational purposes.
 ## Contact
 
 For questions or feedback, please open an issue in the repository.
+
+## Comprehensive Model Evaluation
+
+This project includes comprehensive evaluation tools with all metrics and visualizations.
+
+### Quick Comparison
+
+Compare both models with all metrics and plots:
+
+```bash
+python compare_models.py \
+    --efficientnet-weights checkpoints/efficientnet_best.pth \
+    --mobilevit-weights checkpoints/mobilevit_best.pth \
+    --data-dir data/ \
+    --output-dir results/
+```
+
+### Generated Metrics
+
+- **Confusion Matrix** with TP, TN, FP, FN
+- **Accuracy, Precision, Recall, F1-Score**
+- **Precision vs Threshold** plot
+- **Recall vs Threshold** plot
+- **F1-Score vs Threshold** plot (with optimal threshold)
+- **Precision-Recall (PR) Curve** with average precision
+
+### Output Structure
+
+```
+results/
+├── efficientnet/          # EfficientNet-B0 plots
+├── mobilevit/             # MobileViT-v2 plots
+├── comparison/            # Side-by-side comparison
+└── comparison_results.txt # Detailed metrics
+```
+
+See `docs/EVALUATION_GUIDE.md` for complete documentation.
+
