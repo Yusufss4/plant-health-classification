@@ -1,6 +1,7 @@
 # Core deep learning framework
+# Note: MobileViT-v2 requires torchvision >= 0.16.0
 torch>=2.0.0
-torchvision>=0.15.0
+torchvision>=0.16.0
 
 # Data manipulation and numerical computations
 numpy>=1.24.0

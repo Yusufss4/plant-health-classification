@@ -106,115 +106,110 @@ When flattened, pixels that were **neighbors in 2D** become **distant in 1D**, l
 
 ---
 
-## Method 2: Vision Transformer (ViT)
+## Method 2: MobileViT-v2 (Mobile Vision Transformer)
 
-### What is a Vision Transformer?
+### What is MobileViT-v2?
 
-**Vision Transformer (ViT)** is a modern architecture that applies the Transformer mechanism (originally from NLP) to computer vision:
+**MobileViT-v2** is a lightweight hybrid CNN-Transformer architecture designed for efficient deployment:
 
-- Treats images as sequences of patches
-- Uses **self-attention** to capture relationships between patches
-- Learns both **local** and **global** context
+- **Hybrid Design**: Combines CNNs (for local features) with Transformers (for global context)
+- Uses **separable self-attention** with linear complexity instead of quadratic
+- **Mobile-Optimized**: Designed for edge devices with limited resources
+- **Pretrained**: Uses ImageNet-1k pretraining for better transfer learning
+- Significantly more efficient than standard ViT (~5M vs ~86M parameters)
 
 ### Core Concepts
 
-#### 1. Image Patching
+#### 1. Hybrid CNN-Transformer Architecture
 
-Instead of processing pixels individually, ViT divides the image into **non-overlapping patches**:
+MobileViT-v2 combines the best of both worlds:
 
 ```
-Original Image: 224×224×3
+Input Image [224×224×3]
     ↓
-Divide into patches: 16×16 patches
+CNN Stem (Local Feature Extraction)
     ↓
-Number of patches: (224/16) × (224/16) = 14 × 14 = 196 patches
+MobileViT Blocks (Hybrid CNN + Transformer)
+│  - Depthwise Separable Convolutions
+│  - Separable Self-Attention
+│  - Local + Global Context Fusion
     ↓
-Each patch: 16×16×3 = 768 pixels
-```
-
-**Why Patching?**
-- Preserves local spatial information within each patch
-- Reduces computational complexity (196 patches vs. 50,176 pixels)
-- Each patch can be processed as a "token" (like words in NLP)
-
-#### 2. Patch Embedding
-
-Each patch is linearly projected to an embedding vector:
-
-```
-Patch [16×16×3 = 768] 
+Global Average Pooling
     ↓
-Linear Projection
+Classification Head [num_classes]
+```
+
+**Why Hybrid?**
+- CNNs capture **local patterns** efficiently (edges, textures)
+- Transformers capture **global context** (overall leaf health)
+- Combination provides both detail and holistic understanding
+- More efficient than pure Transformer approaches
+
+#### 2. Separable Self-Attention
+
+Unlike standard ViT with quadratic complexity O(n²), MobileViT-v2 uses **separable self-attention**:
+
+**Standard Self-Attention** (in ViT):
+```
+Complexity: O(n²) where n = number of patches
+Memory: High (stores full attention matrix)
+```
+
+**Separable Self-Attention** (in MobileViT-v2):
+```
+Complexity: O(n) - Linear!
+Memory: Low (processes in separate stages)
+Accuracy: Comparable to standard attention
+```
+
+**How it works**:
+```
+For each token:
+  1. Separate the attention into spatial dimensions
+  2. Apply attention along width, then height
+  3. Aggregate information efficiently
+  
+Result: Same expressiveness, much lower cost
+```
+
+#### 3. Depthwise Separable Convolutions
+
+MobileViT-v2 inherits efficiency tricks from MobileNet:
+
+```
+Standard Convolution:
+  - Operations: H × W × C_in × C_out × K²
+  - Example: 1,769,472 operations
+
+Depthwise Separable:
+  - Depthwise: H × W × C × K²
+  - Pointwise: H × W × C_in × C_out
+  - Example: 201,728 operations (8.7x faster!)
+```
+
+#### 4. Multi-Scale Feature Learning
+
+MobileViT-v2 processes features at multiple scales:
+
+```
+Early Layers: Fine details (spots, lesions)
     ↓
-Embedding Vector [768 dimensions]
-```
-
-This creates a rich representation of each patch's visual content.
-
-#### 3. Positional Encoding
-
-Since patches are processed as a sequence, we add **positional information**:
-
-```
-Patch Embedding + Positional Encoding = Position-Aware Patch
-```
-
-**Why Needed?**
-- Self-attention has no inherent notion of order
-- Positional encodings tell the model where each patch is located
-- Enables learning of spatial relationships
-
-#### 4. Self-Attention Mechanism
-
-**Self-attention** allows each patch to "attend to" every other patch:
-
-```
-For each patch:
-  1. Calculate attention scores with all other patches
-  2. Focus more on relevant patches
-  3. Aggregate information based on attention weights
-```
-
-**Example**: 
-- A patch with a disease spot attends to:
-  - Neighboring patches (for local context)
-  - Central leaf patches (for comparison with healthy tissue)
-  - Edge patches (to understand leaf boundaries)
-
-**Self-Attention Formula**:
-```
-Attention(Q, K, V) = softmax(QK^T / √d_k) V
-
-Where:
-- Q (Query): "What am I looking for?"
-- K (Key): "What information do I have?"
-- V (Value): "What information should I pass forward?"
-```
-
-#### 5. Multi-Head Attention
-
-Instead of one attention mechanism, ViT uses **multiple attention heads** in parallel:
-
-```
-Head 1: Focuses on color patterns
-Head 2: Focuses on texture
-Head 3: Focuses on shape
-...
-Head 12: Focuses on spatial relationships
+Middle Layers: Mid-level features (patterns, regions)
     ↓
-Concatenate all heads
-    ↓
-Combined rich representation
+Late Layers: High-level semantics (overall health)
 ```
+
+This multi-scale approach helps identify diseases at different stages.
+
+#### 5. ImageNet Pretraining
+
+MobileViT-v2 is pretrained on ImageNet-1k (1.3M images, 1000 classes):
 
 **Benefits**:
-- Different heads learn different aspects
-- More robust feature learning
-- Captures diverse visual patterns
-
-#### 6. Transformer Encoder
-
-The Transformer encoder consists of repeated blocks:
+- **Transfer Learning**: Pretrained features accelerate training
+- **Better Initialization**: Starts with knowledge of visual patterns
+- **Fewer Samples Needed**: Works well with smaller agricultural datasets
+- **Improved Generalization**: Better performance on unseen plant types
 
 ```
 Patch Embeddings [196, 768]
@@ -242,118 +237,122 @@ Final Representation [196, 768]
 
 After transformer encoding, extract classification:
 
-```
-All Patch Representations [196, 768]
-    ↓
-Global Average Pooling or [CLS] Token
-    ↓
-Classification MLP [768 → 2]
-    ↓
-Softmax → [Healthy_prob, Diseased_prob]
-```
-
-### ViT Architecture for This Project
+### MobileViT-v2 Architecture for This Project
 
 ```python
 Model Architecture:
 ==================================================
 Input Image:              [224, 224, 3]
-Patch Size:               16×16
-Number of Patches:        196 (14×14)
 
-Patch Embedding:          [196, 768]
-Positional Encoding:      [196, 768]
+CNN Stem:
+  - Initial Convolution:  [3 → 32 channels]
+  - Stride: 2, Output:    [112, 112, 32]
 
-Transformer Encoder:
-  - Layers:               12
-  - Attention Heads:      12
-  - Embedding Dimension:  768
-  - MLP Hidden Dimension: 3072 (4× embedding)
-  - Dropout:              0.1
+MobileViT Blocks (Hybrid):
+  Block 1: CNN layers     [112, 112, 32 → 64]
+  Block 2: MobileViT      [56, 56, 64 → 128]
+    - Depthwise Separable Convolutions
+    - Separable Self-Attention (Linear complexity)
+    - Local-Global Fusion
+  Block 3: MobileViT      [28, 28, 128 → 256]
+  Block 4: MobileViT      [14, 14, 256 → 384]
 
-Classification Head:      [768 → 2]
-Output:                   Softmax probabilities
+Global Pooling:          [384]
+Classification Head:     [384 → 2]
+Output:                  Softmax probabilities
 ==================================================
-Total Parameters: ~86 Million
+Total Parameters: ~5 Million (mobilevitv2_100)
+Model Size: ~20 MB
+==================================================
+Efficiency: 17x fewer parameters than standard ViT!
 ```
 
 ### Key Hyperparameters
 
-- **Patch Size**: 16×16 pixels
-- **Embedding Dimension**: 768
-- **Number of Layers**: 12
-- **Attention Heads**: 12
-- **MLP Ratio**: 4 (hidden dimension = 4 × embedding dimension)
+- **Model Variant**: mobilevitv2_100 (balanced accuracy/efficiency)
+- **Input Size**: 224×224 pixels
+- **CNN Channels**: Progressive [32, 64, 128, 256, 384]
+- **Attention Type**: Separable self-attention (linear complexity)
+- **Pretraining**: ImageNet-1k (1.3M images, 1000 classes)
 - **Dropout**: 0.1
-- **Attention Dropout**: 0.1
+- **Optimization**: Designed for mobile/edge deployment
 
-### Advantages of Vision Transformer
+### Advantages of MobileViT-v2
 
-✅ **Preserves Spatial Information**: Patches maintain local structure  
-✅ **Global Context**: Self-attention captures long-range dependencies  
-✅ **Translation Invariant**: Robust to small image shifts  
-✅ **Scalable**: Performance improves with more data  
-✅ **Flexible**: Can handle variable image sizes (with interpolation)  
-✅ **Less Overfitting**: Attention mechanism provides implicit regularization  
-✅ **Interpretable**: Attention maps show what model focuses on  
+✅ **Hybrid CNN+Transformer Design**: Best of both worlds - local + global features  
+✅ **Linear Complexity**: O(n) vs O(n²) in standard ViT - much more efficient  
+✅ **Mobile-Friendly**: Optimized for edge devices with limited resources  
+✅ **Lightweight**: ~5M parameters vs ~86M in standard ViT (17x reduction!)  
+✅ **Fast Inference**: Suitable for real-time plant health monitoring  
+✅ **Pretrained**: ImageNet-1k features accelerate training on agricultural data  
+✅ **Better for Small Datasets**: More appropriate for limited agricultural images  
+✅ **Depthwise Separable Convolutions**: 8-10x faster than standard convolutions  
 
 ### Strengths for Image Classification
 
-1. **Spatial Relationships**: Patches preserve 2D structure
-2. **Hierarchical Learning**: Multi-head attention learns features at multiple levels
-3. **Context Awareness**: Each patch influenced by entire image
-4. **Parameter Efficiency**: Fewer parameters than comparable CNNs
-5. **Transfer Learning**: Pre-trained ViT models generalize well
+1. **Efficient Local Feature Extraction**: CNN layers capture fine details (spots, lesions)
+2. **Global Context Awareness**: Transformer blocks understand overall leaf health
+3. **Multi-Scale Processing**: Captures features at different resolutions
+4. **Transfer Learning**: Pretrained on ImageNet provides strong visual features
+5. **Resource Efficient**: Deployable on smartphones and edge devices
+6. **Fast Training**: Converges faster than standard ViT due to hybrid design
 
-### Why ViT Works for Plant Disease Detection
+### Why MobileViT-v2 Works for Plant Disease Detection
 
 **Example Scenario**: Detecting a diseased spot
 
-1. **Patch Embedding**: Spot captured within one or few patches
-2. **Self-Attention**: 
-   - Spot patches attend to surrounding healthy tissue
-   - Model compares diseased vs. healthy patterns
-   - Global context (entire leaf) informs local decision
-3. **Multi-Scale Features**: 
-   - Early layers: Low-level features (color, texture)
-   - Middle layers: Mid-level features (spots, lesions)
-   - Late layers: High-level features (overall health status)
+1. **CNN Stem**: Extracts low-level features (edges, colors, textures)
+2. **Early MobileViT Blocks**: 
+   - CNNs capture local patterns (individual spots, lesions)
+   - Separable attention relates nearby regions
+3. **Late MobileViT Blocks**:
+   - Global context understands overall leaf condition
+   - Compares diseased regions with healthy areas
+   - Makes classification based on holistic view
+4. **Efficiency**: Processes image in ~15-20ms on mobile GPU
+
+**Why MobileViT-v2 over Standard ViT:**
+
+| Factor | Standard ViT | MobileViT-v2 | Winner |
+|--------|-------------|--------------|--------|
+| **Parameters** | ~86M | ~5M | MobileViT-v2 (17x less) |
+| **Complexity** | O(n²) quadratic | O(n) linear | MobileViT-v2 |
+| **Mobile Deploy** | Difficult | Easy | MobileViT-v2 |
+| **Training Speed** | Slow | Fast | MobileViT-v2 |
+| **Small Data** | Needs lots | Works well | MobileViT-v2 |
+| **Accuracy** | High | Comparable | Similar |
+| **Pretraining** | Limited | ImageNet-1k | MobileViT-v2 |
+| **Real-time** | Challenging | Achievable | MobileViT-v2 |
 
 ---
 
-## Comparison: FCNN vs. ViT
+## Comparison: FCNN vs. MobileViT-v2
 
-| Aspect | FCNN | ViT |
-|--------|------|-----|
-| **Input Processing** | Flatten to 1D vector | Divide into 2D patches |
-| **Spatial Structure** | ❌ Lost during flattening | ✅ Preserved in patches |
-| **Context** | ❌ Local only (within layer) | ✅ Global (self-attention) |
-| **Parameters** | ~307M (huge) | ~86M (moderate) |
-| **Memory** | Very high | Moderate |
-| **Training Speed** | Fast per epoch | Slower per epoch |
-| **Convergence** | Can converge quickly | May need more epochs |
-| **Overfitting Risk** | ⚠️ High (many parameters) | ✅ Lower (attention regularization) |
+| Aspect | FCNN | MobileViT-v2 |
+|--------|------|--------------|
+| **Input Processing** | Flatten to 1D vector | Hybrid CNN + Transformer |
+| **Spatial Structure** | ❌ Lost during flattening | ✅ Preserved (CNN + attention) |
+| **Context** | ❌ Local only (within layer) | ✅ Local (CNN) + Global (attention) |
+| **Parameters** | ~307M (huge) | ~5M (very efficient!) |
+| **Memory** | Very high | Low |
+| **Training Speed** | Fast per epoch | Moderate (faster than ViT) |
+| **Convergence** | Can converge quickly | Faster than standard ViT |
+| **Overfitting Risk** | ⚠️ High (many parameters) | ✅ Low (fewer params, pretrained) |
 | **Interpretability** | ❌ Black box | ✅ Attention visualization |
-| **Generalization** | ⚠️ Poor on unseen data | ✅ Better generalization |
+| **Generalization** | ⚠️ Poor on unseen data | ✅ Excellent generalization |
+| **Mobile Deployment** | Possible | ✅ Optimized for mobile |
 | **Real-World Performance** | ~85-90% accuracy | ~93-97% accuracy |
 
 ## Architecture Selection Rationale
 
-### When to Use FCNN
+### When to Use MobileViT-v2
 
-- Simple baseline comparison
-- Limited computational resources
-- Very small datasets
-- Quick prototyping
-- Educational purposes (understanding basics)
-
-### When to Use ViT
-
-- State-of-the-art performance required
-- Sufficient training data available
-- Computational resources available
-- Real-world deployment
-- Need for interpretability (attention maps)
+- ✅ **Mobile/Edge Deployment**: Optimized for resource-constrained devices
+- ✅ **Real-time Applications**: Fast inference for on-device processing
+- ✅ **Small to Medium Datasets**: Works well with agricultural datasets
+- ✅ **Production Systems**: Best balance of accuracy and efficiency
+- ✅ **Transfer Learning**: Pretrained on ImageNet-1k
+- ✅ **Cost-Effective**: Lower computational costs
 
 ## Implementation Notes
 
@@ -364,12 +363,14 @@ Total Parameters: ~86 Million
 - **Regularization**: Heavy dropout needed
 - **Batch Normalization**: Improves stability
 
-### ViT Considerations
+### MobileViT-v2 Considerations
 
-- **Pre-training**: Often better with ImageNet pre-training
-- **Warmup**: Learning rate warmup recommended
+- **Pretrained Weights**: Use ImageNet-1k pretrained model (recommended)
+- **Fine-tuning Strategy**: Freeze early layers, train later layers first
 - **Data Augmentation**: Important for smaller datasets
-- **Patch Size**: Trade-off between detail and computation
+- **Lower Learning Rate**: Use smaller LR (~1e-4) for fine-tuning
+- **Batch Size**: Can use larger batches than standard ViT (16-32)
+- **Mobile Deployment**: Export to ONNX or TorchScript for mobile
 
 ---
 

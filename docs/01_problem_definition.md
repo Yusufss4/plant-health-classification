@@ -49,7 +49,7 @@ Plant diseases pose a significant threat to global food security and agricultura
 ### Goals
 
 1. **Primary Goal**: Develop accurate binary classifier for plant health assessment
-2. **Comparative Analysis**: Evaluate performance of traditional (FCNN) vs. modern (ViT) approaches
+2. **Comparative Analysis**: Evaluate performance of traditional (FCNN) vs. modern (MobileViT-v2) approaches
 3. **Practical Deployment**: Create models suitable for real-world agricultural applications
 
 ### Success Criteria
@@ -91,7 +91,7 @@ Plant diseases pose a significant threat to global food security and agricultura
 This project focuses on:
 - **Binary classification** (healthy vs. diseased) rather than multi-class disease identification
 - **Leaf images** from the PlantVillage dataset
-- **Two comparative approaches**: FCNN and Vision Transformer
+- **Two comparative approaches**: FCNN and MobileViT-v2
 - **Comprehensive evaluation** using multiple metrics
 - **Educational demonstration** of modern deep learning techniques in agriculture
 

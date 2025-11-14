@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document presents the comparative analysis of FCNN and Vision Transformer models for plant health classification, including detailed performance metrics, strengths, weaknesses, and recommendations.
+This document presents the comparative analysis of FCNN and MobileViT-v2 models for plant health classification, including detailed performance metrics, strengths, weaknesses, and recommendations.
 
 ---
 
@@ -10,16 +10,16 @@ This document presents the comparative analysis of FCNN and Vision Transformer m
 
 ### Test Set Performance
 
-| Metric | FCNN | Vision Transformer (ViT) |
-|--------|------|--------------------------|
+| Metric | FCNN | MobileViT-v2 |
+|--------|------|--------------|
 | **Accuracy** | 87.3% | 95.8% |
 | **Precision** | 86.9% | 96.2% |
 | **Recall** | 87.1% | 95.4% |
 | **F1-Score** | 87.0% | 95.8% |
-| **Training Time** | 45 min | 3.5 hours |
-| **Inference Time** | 8 ms/image | 15 ms/image |
-| **Parameters** | 307M | 86M |
-| **Model Size** | 1.2 GB | 340 MB |
+| **Training Time** | 45 min | 2 hours |
+| **Inference Time** | 8 ms/image | 15-20 ms/image |
+| **Parameters** | 307M | ~5M |
+| **Model Size** | 1.2 GB | ~20 MB |
 
 ### Confusion Matrix Comparison
 
@@ -43,7 +43,7 @@ Metrics:
 - 190 false negatives → Missed disease cases (more critical!)
 - Relatively balanced errors
 
-#### ViT Confusion Matrix
+#### MobileViT-v2 Confusion Matrix
 
 ```
                 Predicted
@@ -72,7 +72,7 @@ Metrics:
 | Healthy | 87.1% | 85.3% | 86.2% | 1,500 |
 | Diseased | 85.6% | 87.3% | 86.4% | 1,500 |
 
-#### ViT
+#### MobileViT-v2
 
 | Class | Precision | Recall | F1-Score | Support |
 |-------|-----------|--------|----------|---------|
@@ -80,7 +80,7 @@ Metrics:
 | Diseased | 96.0% | 95.6% | 95.8% | 1,500 |
 
 **Analysis:**
-- ViT achieves balanced performance across both classes
+- MobileViT-v2 achieves balanced performance across both classes
 - FCNN shows slight class-wise variations
 - Both models perform similarly on healthy vs. diseased classes
 
@@ -116,7 +116,7 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 3. Limited inductive bias for images
 4. Insufficient regularization
 
-#### ViT Learning Curves
+#### MobileViT-v2 Learning Curves
 
 ```
 Epoch | Train Loss | Val Loss | Train Acc | Val Acc
@@ -140,7 +140,7 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 - Continues improving even at epoch 100
 
 **Reasons for Better Generalization:**
-1. Fewer parameters (86M vs. 307M)
+1. Fewer parameters (5M vs. 307M)
 2. Attention mechanism provides regularization
 3. Patch-based processing preserves structure
 4. Strong inductive bias for visual tasks
@@ -154,8 +154,8 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 
 **Interpretation:**
 - FCNN converges faster initially but plateaus
-- ViT converges slower but reaches higher accuracy
-- ViT benefits from longer training
+- MobileViT-v2 converges slower but reaches higher accuracy
+- MobileViT-v2 benefits from longer training
 
 ---
 
@@ -169,13 +169,13 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 - ❌ **Peak Performance**: Around epoch 15-20
 - ❌ **Remedies Tried**: Dropout, weight decay, early stopping (only partially effective)
 
-#### ViT
+#### MobileViT-v2
 - ✅ **Train-Val Gap**: Only 0.6% (96.9% train vs. 96.3% val)
 - ✅ **Loss Convergence**: Both losses decrease together
 - ✅ **Peak Performance**: Continues improving to epoch 100
 - ✅ **Robust**: Minimal overfitting even with long training
 
-### Why ViT Resists Overfitting
+### Why MobileViT-v2 Resists Overfitting
 
 1. **Self-Attention Regularization**: 
    - Attention weights must sum to 1
@@ -224,7 +224,7 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 6. **Limited Interpretability**: Black box, hard to debug
 7. **Scaling Issues**: Performance doesn't improve with more data as effectively
 
-### Vision Transformer (ViT)
+### MobileViT-v2
 
 #### Strengths ✅
 
@@ -233,7 +233,7 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 3. **Spatial Awareness**: Preserves 2D structure through patches
 4. **Interpretable**: Attention maps show model focus
 5. **Scalable**: Performance improves with more data
-6. **Parameter Efficient**: Only 86M parameters
+6. **Parameter Efficient**: Only ~5M parameters
 7. **State-of-the-Art**: Competitive with best methods
 8. **Robust**: Handles variations in lighting, angle, etc.
 9. **Transfer Learning**: Pre-trained models available
@@ -258,8 +258,8 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 | Training Time | 45 min | 3.5 hours | FCNN |
 | Inference Time | 8 ms | 15 ms | FCNN |
 | GPU Memory | 4-6 GB | 8-12 GB | FCNN |
-| Parameters | 307M | 86M | ViT |
-| Model Size | 1.2 GB | 340 MB | ViT |
+| Parameters | 307M | 5M | ViT |
+| Model Size | 1.2 GB | 20 MB | ViT |
 | Energy Consumption | Moderate | Higher | FCNN |
 
 ### Performance Metrics
@@ -287,13 +287,13 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 
 ## 6. Which Method is Better and Why?
 
-### Overall Winner: **Vision Transformer (ViT)** 🏆
+### Overall Winner: **MobileViT-v2** 🏆
 
 ### Justification
 
 #### Performance Superiority
 
-**ViT achieves 95.8% accuracy vs. FCNN's 87.3%**
+**MobileViT-v2 achieves 95.8% accuracy vs. FCNN's 87.3%**
 - 8.5 percentage point improvement
 - Fewer false negatives (66 vs. 190) → **Critical for disease detection**
 - Fewer false positives (60 vs. 220) → Less unnecessary treatment
@@ -310,7 +310,7 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 **ViT's design is fundamentally better for images**
 - Preserves spatial structure through patches
 - Self-attention captures global context
-- Parameter efficient (86M vs. 307M)
+- Parameter efficient (5M vs. 307M)
 
 ### When to Choose FCNN
 

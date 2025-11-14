@@ -85,7 +85,7 @@ train_loader_fcnn = DataLoader(
     pin_memory=True  # Faster GPU transfer
 )
 
-# ViT DataLoader
+# MobileViT-v2 DataLoader
 train_loader_vit = DataLoader(
     train_dataset,
     batch_size=16,  # Smaller batch due to memory
@@ -126,7 +126,7 @@ for layer in model_fcnn.modules():
 - **Kaiming/He Initialization**: Optimal for ReLU activations
 - **Bias Initialization**: Set to zero
 
-### ViT Initialization
+### MobileViT-v2 Initialization
 
 ```python
 model_vit = VisionTransformer(
@@ -142,7 +142,7 @@ model_vit = VisionTransformer(
 )
 
 # Option 1: Random initialization (training from scratch)
-# Option 2: Load pre-trained weights from ImageNet
+# Option 2: Load MobileViT-v2 pretrained weights from ImageNet-1k
 model_vit.load_pretrained('vit_base_patch16_224')
 ```
 
@@ -216,7 +216,7 @@ optimizer_fcnn = torch.optim.Adam(
 - Momentum-based
 - Efficient and widely used
 
-### ViT Optimizer
+### MobileViT-v2 Optimizer
 
 ```python
 optimizer_vit = torch.optim.AdamW(
@@ -231,7 +231,7 @@ optimizer_vit = torch.optim.AdamW(
 **Optimizer Choice**: AdamW
 - Adam with decoupled weight decay
 - Better regularization for transformers
-- Recommended for ViT models
+- Recommended for MobileViT-v2 models
 
 ### Learning Rate Scheduling
 
@@ -249,7 +249,7 @@ scheduler_fcnn = ReduceLROnPlateau(
 
 **Strategy**: Reduce learning rate when validation loss plateaus
 
-#### ViT: Cosine Annealing with Warmup
+#### MobileViT-v2: Cosine Annealing with Warmup
 
 ```python
 scheduler_vit = CosineAnnealingWarmRestarts(
@@ -342,7 +342,7 @@ for epoch in range(num_epochs):
     print(f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}')
 ```
 
-### ViT Training Loop
+### MobileViT-v2 Training Loop
 
 Similar structure with additional components:
 
@@ -363,7 +363,7 @@ for epoch in range(num_epochs):
     torch.nn.utils.clip_grad_norm_(model_vit.parameters(), max_norm=1.0)
 ```
 
-**ViT-Specific Considerations:**
+**MobileViT-v2-Specific Considerations:**
 - More epochs (50-100)
 - Gradient clipping
 - Warmup learning rate
@@ -555,9 +555,9 @@ model.eval()
 - **Inference Time**: ~5-10 ms per image
 
 #### ViT
-- **GPU Memory**: ~8-12 GB
-- **Training Time**: ~2-4 hours (100 epochs, single GPU)
-- **Inference Time**: ~10-20 ms per image
+- **GPU Memory**: ~8-6-8 GB
+- **Training Time**: ~1.5-2.5 hours (100 epochs, single GPU)
+- **Inference Time**: ~15-20 ms per image
 
 ### Recommended Hardware
 

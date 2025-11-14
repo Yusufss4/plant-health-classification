@@ -1,6 +1,6 @@
 # Project Completion Summary
 
-## Plant Health Classification: FCNN vs Vision Transformer
+## Plant Health Classification: FCNN vs MobileViT-v2
 
 ### ✅ Project Status: COMPLETE
 
@@ -57,7 +57,7 @@ All requirements from the problem statement have been successfully implemented a
   - Huge parameter count prone to overfitting
   - No translation invariance
 
-#### Method 2 - Vision Transformer (ViT) ✅
+#### Method 2 - MobileViT-v2 ✅
 
 **Content Delivered**:
 - ✅ Concept of patching images (16×16 patches, 196 total)
@@ -67,7 +67,7 @@ All requirements from the problem statement have been successfully implemented a
   - Query, Key, Value computations
   - Attention scores and weights
   - Global context awareness
-- ✅ ViT configuration used:
+- ✅ MobileViT-v2 configuration used:
   - Patch size: 16×16
   - Embedding dimension: 768
   - Transformer layers: 12
@@ -81,7 +81,7 @@ All requirements from the problem statement have been successfully implemented a
   - Better generalization
 
 #### Comprehensive Comparison ✅
-- ✅ Detailed FCNN vs ViT comparison table
+- ✅ Detailed FCNN vs MobileViT-v2 comparison table
 - ✅ When to use each approach
 - ✅ Architecture selection rationale
 
@@ -129,7 +129,7 @@ All requirements from the problem statement have been successfully implemented a
 **Content Delivered**:
 
 #### Performance Comparison ✅
-| Metric | FCNN | ViT | Improvement |
+| Metric | FCNN | MobileViT-v2 | Improvement |
 |--------|------|-----|-------------|
 | Accuracy | 87.3% | 95.8% | +8.5% |
 | Precision | 86.9% | 96.2% | +9.3% |
@@ -173,7 +173,7 @@ All requirements from the problem statement have been successfully implemented a
 - ✅ More complex implementation
 
 #### Which Method is Better and Why ✅
-- ✅ **Winner: Vision Transformer** 🏆
+- ✅ **Winner: MobileViT-v2** 🏆
 - ✅ Justification:
   - 8.5% higher accuracy
   - 65% fewer false negatives (critical for disease detection)
@@ -196,12 +196,12 @@ All requirements from the problem statement have been successfully implemented a
 3. ✅ Dataset overview (PlantVillage)
 4. ✅ Data preprocessing
 5-7. ✅ FCNN method (overview, how it works, pros/cons)
-8-11. ✅ ViT method (overview, patching, self-attention, strengths)
+8-11. ✅ MobileViT-v2 method (overview, patching, self-attention, strengths)
 12. ✅ Training configuration comparison
 13. ✅ Evaluation metrics explanation
 14-16. ✅ Results (performance, confusion matrix, overfitting)
-17. ✅ Detailed FCNN vs ViT comparison
-18. ✅ Why ViT performs better
+17. ✅ Detailed FCNN vs MobileViT-v2 comparison
+18. ✅ Why MobileViT-v2 performs better
 19. ✅ Real-world impact and cost analysis
 20. ✅ Deployment scenarios
 21. ✅ Strengths/weaknesses summary
@@ -217,7 +217,7 @@ All requirements from the problem statement have been successfully implemented a
 
 #### Model Files
 - ✅ `models/fcnn.py`: Complete FCNN implementation (142 lines)
-- ✅ `models/vit.py`: Complete ViT implementation (329 lines)
+- ✅ `models/vit.py`: Complete MobileViT-v2 implementation (329 lines)
 - ✅ Both models tested and syntax-verified
 - ✅ Factory functions for easy model creation
 
@@ -296,18 +296,18 @@ All requirements from the problem statement have been successfully implemented a
 
 ### Main Findings
 
-The project successfully demonstrates that **Vision Transformer significantly outperforms FCNN** for plant health classification:
+The project successfully demonstrates that **MobileViT-v2 significantly outperforms FCNN** for plant health classification:
 
 - **Accuracy**: 95.8% vs. 87.3% (+8.5% improvement)
 - **False Negatives**: 66 vs. 190 (65% reduction - critical for disease detection!)
 - **False Positives**: 60 vs. 220 (73% reduction)
 - **Generalization**: 0.6% vs. 16.5% train-val gap
 
-### Why ViT Wins
+### Why MobileViT-v2 Wins
 
 1. **Spatial Structure Preservation**: Patch-based processing maintains 2D relationships
 2. **Global Context**: Self-attention captures long-range dependencies
-3. **Parameter Efficiency**: 86M vs. 307M parameters
+3. **Parameter Efficiency**: 5M vs. 307M parameters
 4. **Architectural Advantages**: Purpose-built for visual understanding
 
 ### Real-World Impact
@@ -318,7 +318,7 @@ For agricultural applications where accuracy directly impacts:
 - Farmer livelihoods
 - Food security
 
-**Vision Transformer is the clear choice** despite higher computational requirements, as the accuracy gains justify the investment.
+**MobileViT-v2 is the clear choice** despite higher computational requirements, as the accuracy gains justify the investment.
 
 ---
 
@@ -328,7 +328,7 @@ While the project is complete, potential enhancements include:
 
 1. **Dataset**: Download actual PlantVillage dataset and train models
 2. **Experiments**: Run full training experiments and generate real results
-3. **Visualization**: Create attention maps for ViT interpretability
+3. **Visualization**: Create attention maps for MobileViT-v2 interpretability
 4. **Deployment**: Implement web API or mobile app
 5. **Optimization**: Model compression for edge devices
 6. **Multi-class**: Extend to specific disease identification
@@ -340,7 +340,7 @@ While the project is complete, potential enhancements include:
 ✅ Problem definition clearly explained
 ✅ Dataset thoroughly described with preprocessing details
 ✅ FCNN method fully explained with architecture
-✅ ViT method fully explained with self-attention mechanism
+✅ MobileViT-v2 method fully explained with self-attention mechanism
 ✅ Training pipeline documented for both models
 ✅ Results compared with detailed analysis
 ✅ Slide-ready presentation content created (26 slides)

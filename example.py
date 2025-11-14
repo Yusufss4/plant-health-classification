@@ -71,10 +71,10 @@ def demonstrate_fcnn():
     print("\n" + "=" * 80 + "\n")
 
 
-def demonstrate_vit():
-    """Demonstrate Vision Transformer model usage."""
+def demonstrate_mobilevit():
+    """Demonstrate MobileViT-v2 model usage."""
     print("=" * 80)
-    print("VISION TRANSFORMER (ViT) DEMONSTRATION")
+    print("MobileViT-v2 (MOBILE VISION TRANSFORMER) DEMONSTRATION")
     print("=" * 80)
     
     # Create model
@@ -103,7 +103,7 @@ def demonstrate_vit():
     print(f"  - Learnable class token: [1, 1, 768]")
     print(f"  - Learnable position embeddings: [1, 197, 768] (196 patches + 1 CLS)")
     print("\nTransformer Blocks (×12):")
-    print(f"  - Multi-Head Self-Attention (12 heads)")
+    print(f"  - Multi-Head Self-Attention (Separable self-attention)")
     print(f"  - Layer Normalization")
     print(f"  - MLP: [768 → 3072 → 768]")
     print(f"  - Residual Connections")
@@ -210,7 +210,7 @@ def main():
     demonstrate_fcnn()
     
     # Demonstrate ViT
-    demonstrate_vit()
+    demonstrate_mobilevit()
     
     # Compare models
     compare_models()

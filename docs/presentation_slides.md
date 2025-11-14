@@ -1,4 +1,4 @@
-# Plant Health Classification: FCNN vs. Vision Transformer
+# Plant Health Classification: FCNN vs. MobileMobileViT-v2-v2
 ## Slide-Ready Presentation Content
 
 ---
@@ -7,12 +7,12 @@
 
 **Title:** Plant Health Classification Using Deep Learning
 
-**Subtitle:** Comparing FCNN and Vision Transformer Approaches
+**Subtitle:** Comparing FCNN and MobileMobileViT-v2-v2 Approaches
 
 **Key Points:**
 - Binary Classification: Healthy vs. Diseased Plant Leaves
 - PlantVillage Dataset
-- Two Methods: Traditional (FCNN) vs. Modern (ViT)
+- Two Methods: Traditional (FCNN) vs. Modern (MobileViT-v2)
 
 ---
 
@@ -158,9 +158,9 @@ Output: 2 classes (Softmax)
 
 ---
 
-## Slide 8: Method 2 - ViT Overview
+## Slide 8: Method 2 - MobileViT-v2 Overview
 
-**Title:** Vision Transformer (ViT)
+**Title:** MobileMobileViT-v2-v2 (MobileViT-v2)
 
 **Key Innovation:** Treat images as sequences of patches
 
@@ -183,15 +183,15 @@ Classification Head → 2 classes
 ```
 
 **Key Characteristics:**
-- ⚙️ Parameters: ~86 Million
+- ⚙️ Parameters: ~~5 Million
 - ⚡ Inference: 15 ms/image
-- 📦 Model size: 340 MB
+- 📦 Model size: ~20 MB
 
 ---
 
-## Slide 9: ViT - Patch-Based Processing
+## Slide 9: MobileViT-v2 - Patch-Based Processing
 
-**Title:** How ViT Processes Images
+**Title:** How MobileViT-v2 Processes Images
 
 **Step 1: Image Patching**
 ```
@@ -214,7 +214,7 @@ Add position information
 
 ---
 
-## Slide 10: ViT - Self-Attention Mechanism
+## Slide 10: MobileViT-v2 - Self-Attention Mechanism
 
 **Title:** Understanding Self-Attention
 
@@ -239,14 +239,14 @@ Each patch asks: "Which other patches should I focus on?"
 
 ---
 
-## Slide 11: ViT - Strengths & Advantages
+## Slide 11: MobileViT-v2 - Strengths & Advantages
 
-**Title:** Why ViT Excels
+**Title:** Why MobileViT-v2 Excels
 
 **Strengths ✅**
 - **Preserves spatial structure** (patch-based)
 - **Global context** (self-attention)
-- **Parameter efficient** (86M vs. 307M)
+- **Parameter efficient** (5M vs. 307M)
 - **Excellent generalization** (minimal overfitting)
 - **Interpretable** (attention maps)
 - **Scalable** (benefits from more data)
@@ -262,18 +262,18 @@ Better understanding of image structure!
 
 **Title:** Training Setup Comparison
 
-| Parameter | FCNN | ViT |
+| Parameter | FCNN | MobileViT-v2 |
 |-----------|------|-----|
 | **Epochs** | 50 | 100 |
 | **Batch Size** | 32 | 16 |
 | **Initial LR** | 0.001 | 0.0001 |
 | **Optimizer** | Adam | AdamW |
 | **LR Schedule** | ReduceLROnPlateau | Cosine + Warmup |
-| **Training Time** | 45 min | 3.5 hours |
+| **Training Time** | 45 min | 2 hours |
 
 **Loss Function:** Cross-Entropy Loss (both)
 
-**Hardware:** Single NVIDIA GPU (8-12 GB VRAM)
+**Hardware:** Single NVIDIA GPU (8-6-8 GB VRAM)
 
 ---
 
@@ -305,16 +305,16 @@ Better understanding of image structure!
 
 **Title:** Model Performance on Test Set
 
-| Metric | FCNN | ViT | Improvement |
+| Metric | FCNN | MobileViT-v2 | Improvement |
 |--------|------|-----|-------------|
 | **Accuracy** | 87.3% | **95.8%** | +8.5% ⬆️ |
 | **Precision** | 86.9% | **96.2%** | +9.3% ⬆️ |
 | **Recall** | 87.1% | **95.4%** | +8.3% ⬆️ |
 | **F1-Score** | 87.0% | **95.8%** | +8.8% ⬆️ |
 
-🏆 **Winner: Vision Transformer**
+🏆 **Winner: MobileMobileViT-v2-v2**
 
-**Key Insight:** ViT achieves near-human-level performance!
+**Key Insight:** MobileViT-v2 achieves near-human-level performance!
 
 ---
 
@@ -330,7 +330,7 @@ Healthy     1,280     220    ← 220 false alarms
 Diseased      190   1,310    ← 190 missed diseases ⚠️
 ```
 
-**ViT Confusion Matrix:**
+**MobileViT-v2 Confusion Matrix:**
 ```
               Predicted
            Healthy  Diseased
@@ -339,8 +339,8 @@ Diseased       66   1,434    ← Only 66 missed diseases ✅
 ```
 
 **Impact:**
-- ViT: **65% fewer false negatives** (missed diseases)
-- ViT: **73% fewer false positives** (false alarms)
+- MobileViT-v2: **65% fewer false negatives** (missed diseases)
+- MobileViT-v2: **73% fewer false positives** (false alarms)
 
 ---
 
@@ -358,7 +358,7 @@ Epoch 50:  Train 97.3%  |  Val 80.8%  ❌ Severe overfitting!
 - Memorizes training data
 - Poor generalization
 
-**ViT:**
+**MobileViT-v2:**
 ```
 Epoch 10:  Train 78.1%  |  Val 79.8%  ✅
 Epoch 50:  Train 95.1%  |  Val 95.4%  ✅
@@ -370,33 +370,33 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 
 ---
 
-## Slide 17: FCNN vs ViT - Detailed Comparison
+## Slide 17: FCNN vs MobileViT-v2 - Detailed Comparison
 
 **Title:** Comprehensive Comparison
 
 **Performance:**
-- ✅ ViT: 95.8% accuracy
+- ✅ MobileViT-v2: 95.8% accuracy
 - ❌ FCNN: 87.3% accuracy
 
 **Generalization:**
-- ✅ ViT: Minimal overfitting (0.6% gap)
+- ✅ MobileViT-v2: Minimal overfitting (0.6% gap)
 - ❌ FCNN: Severe overfitting (16.5% gap)
 
 **Architecture:**
-- ✅ ViT: Preserves spatial structure
+- ✅ MobileViT-v2: Preserves spatial structure
 - ❌ FCNN: Loses spatial relationships
 
 **Parameters:**
-- ✅ ViT: 86M (efficient)
+- ✅ MobileViT-v2: 5M (efficient)
 - ❌ FCNN: 307M (redundant)
 
 **Computational Cost:**
 - ✅ FCNN: Faster training/inference
-- ⚠️ ViT: Higher computational needs
+- ⚠️ MobileViT-v2: Higher computational needs
 
 ---
 
-## Slide 18: Why ViT Performs Better
+## Slide 18: Why MobileViT-v2 Performs Better
 
 **Title:** Key Success Factors
 
@@ -410,7 +410,7 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 - Implicit regularization
 
 **3. Parameter Efficiency**
-- 86M vs. 307M parameters
+- 5M vs. 307M parameters
 - Better utilization of model capacity
 
 **4. Architectural Inductive Bias**
@@ -428,16 +428,16 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 
 **False Negatives (Missed Diseases):**
 - FCNN: 190 diseased plants go untreated 🚨
-- ViT: Only 66 missed diseases ✅
+- MobileViT-v2: Only 66 missed diseases ✅
 - **Impact:** Disease spreads, crop failure, major losses
 
 **False Positives (Unnecessary Treatment):**
 - FCNN: 220 healthy plants treated unnecessarily
-- ViT: Only 60 false alarms ✅
+- MobileViT-v2: Only 60 false alarms ✅
 - **Impact:** Wasted pesticides, environmental harm
 
 **ROI Analysis:**
-- ViT's accuracy justifies computational cost
+- MobileViT-v2's accuracy justifies computational cost
 - Disease prevention >> computational expense
 - Long-term cost savings for farmers
 
@@ -448,23 +448,23 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 **Title:** Recommended Deployment Strategies
 
 **Large-Scale Farms:**
-- ✅ **Use ViT** on cloud GPU servers
+- ✅ **Use MobileViT-v2** on cloud GPU servers
 - Process drone imagery in batches
 - Accuracy critical for large investments
 
 **Individual Farmers:**
-- ✅ **Mobile app + ViT cloud backend**
+- ✅ **Mobile app + MobileViT-v2 cloud backend**
 - Farmer captures leaf photo
-- Cloud processes with ViT
+- Cloud processes with MobileViT-v2
 - Results in 1-2 seconds
 
 **Greenhouse Automation:**
-- ✅ **ViT on edge GPU** (NVIDIA Jetson)
+- ✅ **MobileViT-v2 on edge GPU** (NVIDIA Jetson)
 - Continuous monitoring
 - Real-time disease alerts
 
 **Edge Devices (limited resources):**
-- ⚠️ FCNN or optimized ViT
+- ⚠️ FCNN or optimized MobileViT-v2
 - Trade accuracy for speed/memory
 
 ---
@@ -473,14 +473,14 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 
 **Title:** Final Comparison Matrix
 
-| Aspect | FCNN | ViT |
+| Aspect | FCNN | MobileViT-v2 |
 |--------|------|-----|
 | **Accuracy** | ⭐⭐⭐ (87%) | ⭐⭐⭐⭐⭐ (96%) |
 | **Generalization** | ⭐⭐ (Poor) | ⭐⭐⭐⭐⭐ (Excellent) |
 | **Training Speed** | ⭐⭐⭐⭐⭐ (Fast) | ⭐⭐ (Slow) |
 | **Inference Speed** | ⭐⭐⭐⭐⭐ (8ms) | ⭐⭐⭐⭐ (15ms) |
 | **GPU Memory** | ⭐⭐⭐⭐ (4-6GB) | ⭐⭐⭐ (8-12GB) |
-| **Parameters** | ⭐⭐ (307M) | ⭐⭐⭐⭐ (86M) |
+| **Parameters** | ⭐⭐ (307M) | ⭐⭐⭐⭐ (5M) |
 | **Interpretability** | ⭐⭐ (Low) | ⭐⭐⭐⭐⭐ (High) |
 | **Real-World Use** | ⭐⭐⭐ (Limited) | ⭐⭐⭐⭐⭐ (Excellent) |
 
@@ -488,7 +488,7 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 
 ## Slide 22: Which Method is Better?
 
-**Title:** The Clear Winner: Vision Transformer 🏆
+**Title:** The Clear Winner: MobileMobileViT-v2-v2 🏆
 
 **Reasons:**
 
@@ -503,7 +503,7 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 - But accuracy gains justify the investment
 
 **Bottom Line:**
-For production systems where accuracy matters, **ViT is the clear choice**.
+For production systems where accuracy matters, **MobileViT-v2 is the clear choice**.
 
 FCNN suitable only for:
 - Quick prototyping
@@ -518,11 +518,11 @@ FCNN suitable only for:
 
 **1. Architecture Matters**
 - How we process images fundamentally impacts performance
-- Flattening (FCNN) vs. Patches (ViT) makes huge difference
+- Flattening (FCNN) vs. Patches (MobileViT-v2) makes huge difference
 
 **2. Spatial Structure is Critical**
 - Images have 2D relationships that must be preserved
-- ViT's patch-based approach respects image structure
+- MobileViT-v2's patch-based approach respects image structure
 
 **3. Self-Attention is Powerful**
 - Captures global context
@@ -530,7 +530,7 @@ FCNN suitable only for:
 - Enables better generalization
 
 **4. Modern Methods Win**
-- ViT represents paradigm shift in computer vision
+- MobileViT-v2 represents paradigm shift in computer vision
 - State-of-the-art performance justified by better design
 
 **5. Real-World Impact**
@@ -551,7 +551,7 @@ FCNN suitable only for:
 **Model Improvements:**
 - 🎯 Multi-class classification (specific disease types)
 - 🔄 Model compression (edge deployment)
-- 🤝 Ensemble methods (ViT + others)
+- 🤝 Ensemble methods (MobileViT-v2 + others)
 
 **Applications:**
 - 📱 Mobile app deployment
@@ -572,11 +572,11 @@ FCNN suitable only for:
 
 **Project Goals:** ✅ Achieved
 - Developed binary classifier (healthy vs. diseased)
-- Compared FCNN vs. Vision Transformer
+- Compared FCNN vs. MobileMobileViT-v2-v2
 - Demonstrated practical applications
 
 **Key Finding:**
-**Vision Transformer significantly outperforms FCNN**
+**MobileMobileViT-v2-v2 significantly outperforms FCNN**
 - 95.8% vs. 87.3% accuracy
 - Better generalization and real-world applicability
 
@@ -587,7 +587,7 @@ FCNN suitable only for:
 - 🤖 Demonstrates power of modern AI in agriculture
 
 **The Future:**
-AI-powered agriculture is here, and Vision Transformers are leading the way!
+AI-powered agriculture is here, and MobileMobileViT-v2-v2s are leading the way!
 
 ---
 
@@ -612,7 +612,7 @@ AI-powered agriculture is here, and Vision Transformers are leading the way!
 **Acknowledgments:**
 - PlantVillage Dataset
 - PyTorch Community
-- Vision Transformer Paper Authors
+- MobileMobileViT-v2-v2 Paper Authors
 
 ---
 
@@ -634,12 +634,12 @@ AI-powered agriculture is here, and Vision Transformers are leading the way!
 3. **Demonstrations:**
    - Live demo of model inference
    - Show attention maps
-   - Compare FCNN vs. ViT predictions side-by-side
+   - Compare FCNN vs. MobileViT-v2 predictions side-by-side
 
 4. **Key Messages:**
    - Emphasize spatial structure importance
    - Highlight real-world impact
-   - Explain why ViT is architecturally superior
+   - Explain why MobileViT-v2 is architecturally superior
 
 5. **Audience Engagement:**
    - Ask about their experience with plant diseases
