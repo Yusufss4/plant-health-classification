@@ -9,7 +9,22 @@ A streamlined deep learning project for classifying plant leaves as healthy or d
 pip install -r requirements.txt
 ```
 
-2. Prepare your dataset in the following structure:
+2. Prepare the dataset:
+
+**Option A: Automatic download (Recommended)**
+```bash
+python prepare_data.py
+```
+
+This will automatically:
+- Download the PlantVillage dataset from TensorFlow Datasets
+- Extract tomato leaf images (healthy vs diseased)
+- Split into train (70%), validation (15%), and test (15%) sets
+- Organize into the required directory structure
+
+**Option B: Manual preparation**
+
+If you have your own dataset, organize it in the following structure:
 ```
 data/
 ├── train/
