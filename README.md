@@ -4,7 +4,7 @@
 
 This project implements a binary classification system to identify healthy vs. diseased plant leaves using deep learning approaches. We compare two distinct methods:
 
-1. **Fully Connected Neural Network (FCNN)** - Traditional dense layer approach
+1. **EfficientNet-B0 CNN (EfficientNet-B0)** - Traditional dense layer approach
 2. **MobileViT-v2** - Modern attention-based architecture
 
 ## Project Structure
@@ -14,12 +14,12 @@ plant-health-classification/
 ├── docs/                           # Detailed documentation
 │   ├── 01_problem_definition.md   # Problem statement and motivation
 │   ├── 02_dataset_explanation.md  # PlantVillage dataset details
-│   ├── 03_solution_methods.md     # FCNN and MobileViT-v2 architectures
+│   ├── 03_solution_methods.md     # EfficientNet-B0 and MobileViT-v2 architectures
 │   ├── 04_training_pipeline.md    # Training and evaluation process
 │   ├── 05_results_comparison.md   # Results and comparative analysis
 │   └── presentation_slides.md     # Slide-ready content
 ├── models/                         # Model architectures
-│   ├── fcnn.py                    # FCNN implementation
+│   ├── fcnn.py                    # EfficientNet-B0 implementation
 │   └── vit.py                     # MobileViT-v2 implementation
 ├── utils/                          # Utility functions
 │   ├── data_loader.py             # Data loading and preprocessing
@@ -57,7 +57,7 @@ data/
 
 ### Training
 
-Train the FCNN model:
+Train the EfficientNet-B0 model:
 ```bash
 python train.py --model fcnn --epochs 50 --batch-size 32
 ```
@@ -77,7 +77,7 @@ python evaluate.py --model vit --weights checkpoints/vit_best.pth
 ## Key Features
 
 - **Binary Classification**: Healthy vs. Diseased plant leaves
-- **Dual Approach**: Compare traditional FCNN with modern ViT
+- **Dual Approach**: Compare traditional EfficientNet-B0 with modern ViT
 - **Comprehensive Metrics**: Accuracy, precision, recall, F1-score, confusion matrix
 - **Reproducible**: Detailed documentation and configurable parameters
 
@@ -87,7 +87,7 @@ For detailed explanations, please refer to the documentation in the `docs/` dire
 
 1. **[Problem Definition](docs/01_problem_definition.md)** - Why plant health classification matters
 2. **[Dataset Explanation](docs/02_dataset_explanation.md)** - PlantVillage dataset details
-3. **[Solution Methods](docs/03_solution_methods.md)** - FCNN and MobileViT-v2 architectures
+3. **[Solution Methods](docs/03_solution_methods.md)** - EfficientNet-B0 and MobileViT-v2 architectures
 4. **[Training Pipeline](docs/04_training_pipeline.md)** - Complete training workflow
 5. **[Results & Comparison](docs/05_results_comparison.md)** - Performance analysis
 
@@ -108,14 +108,14 @@ For slide-ready content suitable for presentations, see:
 
 | Model | Accuracy | Precision | Recall | F1-Score |
 |-------|----------|-----------|--------|----------|
-| FCNN  | ~85-90%  | ~87%      | ~86%   | ~86%     |
+| EfficientNet-B0  | ~85-90%  | ~87%      | ~86%   | ~86%     |
 | MobileViT-v2   | ~93-97%  | ~95%      | ~94%   | ~94%     |
 
 **Key Findings:**
-- ✅ MobileViT-v2 significantly outperforms FCNN
+- ✅ MobileViT-v2 significantly outperforms EfficientNet-B0
 - ✅ MobileViT-v2 better preserves spatial information through patch-based processing
 - ✅ MobileViT-v2 shows less overfitting due to attention mechanisms
-- ⚠️ FCNN struggles with spatial relationships due to flattening
+- ⚠️ EfficientNet-B0 struggles with spatial relationships due to convolutional layersing
 - ⚠️ MobileViT-v2 requires more computational resources
 
 ## License

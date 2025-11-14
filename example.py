@@ -2,7 +2,7 @@
 Example script demonstrating how to use the plant health classification models.
 
 This script shows:
-1. How to create FCNN and ViT models
+1. How to create EfficientNet-B0 and ViT models
 2. How to perform forward passes
 3. Model architecture details
 """
@@ -11,10 +11,10 @@ import torch
 from models import create_fcnn_model, create_vit_model
 
 
-def demonstrate_fcnn():
-    """Demonstrate FCNN model usage."""
+def demonstrate_efficientnet():
+    """Demonstrate EfficientNet-B0 model usage."""
     print("=" * 80)
-    print("FULLY CONNECTED NEURAL NETWORK (FCNN) DEMONSTRATION")
+    print("EfficientNet-B0 (EFFICIENT CONVOLUTIONAL NEURAL NETWORK) DEMONSTRATION")
     print("=" * 80)
     
     # Create model
@@ -144,7 +144,7 @@ def demonstrate_mobilevit():
 
 
 def compare_models():
-    """Compare FCNN and ViT models."""
+    """Compare EfficientNet-B0 and ViT models."""
     print("=" * 80)
     print("MODEL COMPARISON")
     print("=" * 80)
@@ -155,7 +155,7 @@ def compare_models():
     fcnn_params = fcnn.get_num_parameters()
     vit_params = vit.get_num_parameters()
     
-    print("\n| Aspect                  | FCNN              | ViT               |")
+    print("\n| Aspect                  | EfficientNet-B0              | ViT               |")
     print("|" + "-" * 78 + "|")
     print(f"| Parameters              | {fcnn_params:>17,} | {vit_params:>17,} |")
     print(f"| Model Size (float32)    | {fcnn_params * 4 / (1024**3):>14.2f} GB | {vit_params * 4 / (1024**2):>14.2f} MB |")
@@ -168,7 +168,7 @@ def compare_models():
     
     dummy_input = torch.randn(1, 3, 224, 224)
     
-    # FCNN timing
+    # EfficientNet-B0 timing
     fcnn.eval()
     with torch.no_grad():
         start = time.time()
@@ -188,11 +188,11 @@ def compare_models():
     print("=" * 80)
     
     print("\nKey Differences:")
-    print("1. FCNN flattens images, losing 2D spatial structure")
+    print("1. EfficientNet-B0 convolutional layerss images, losing 2D spatial structure")
     print("2. ViT uses patches, preserving local spatial information")
     print("3. ViT has fewer parameters but is computationally more intensive")
     print("4. ViT uses self-attention to capture global context")
-    print("5. FCNN is faster but less accurate for image tasks")
+    print("5. EfficientNet-B0 is faster but less accurate for image tasks")
 
 
 def main():
@@ -206,8 +206,8 @@ def main():
     print("#" * 80)
     print("\n")
     
-    # Demonstrate FCNN
-    demonstrate_fcnn()
+    # Demonstrate EfficientNet-B0
+    demonstrate_efficientnet()
     
     # Demonstrate ViT
     demonstrate_mobilevit()

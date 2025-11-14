@@ -1,4 +1,5 @@
 # Core deep learning framework
+# Note: EfficientNet-B0 requires torchvision >= 0.13.0
 # Note: MobileViT-v2 requires torchvision >= 0.16.0
 torch>=2.0.0
 torchvision>=0.16.0

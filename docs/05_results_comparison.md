@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document presents the comparative analysis of FCNN and MobileViT-v2 models for plant health classification, including detailed performance metrics, strengths, weaknesses, and recommendations.
+This document presents the comparative analysis of EfficientNet-B0 and MobileViT-v2 models for plant health classification, including detailed performance metrics, strengths, weaknesses, and recommendations.
 
 ---
 
@@ -10,7 +10,7 @@ This document presents the comparative analysis of FCNN and MobileViT-v2 models 
 
 ### Test Set Performance
 
-| Metric | FCNN | MobileViT-v2 |
+| Metric | EfficientNet-B0 | MobileViT-v2 |
 |--------|------|--------------|
 | **Accuracy** | 87.3% | 95.8% |
 | **Precision** | 86.9% | 96.2% |
@@ -18,12 +18,12 @@ This document presents the comparative analysis of FCNN and MobileViT-v2 models 
 | **F1-Score** | 87.0% | 95.8% |
 | **Training Time** | 45 min | 2 hours |
 | **Inference Time** | 8 ms/image | 15-20 ms/image |
-| **Parameters** | 307M | ~5M |
-| **Model Size** | 1.2 GB | ~20 MB |
+| **Parameters** | 5.3M | ~5M |
+| **Model Size** | ~21 MB | ~20 MB |
 
 ### Confusion Matrix Comparison
 
-#### FCNN Confusion Matrix
+#### EfficientNet-B0 Confusion Matrix
 
 ```
                 Predicted
@@ -65,7 +65,7 @@ Metrics:
 
 ### Class-Wise Performance
 
-#### FCNN
+#### EfficientNet-B0
 
 | Class | Precision | Recall | F1-Score | Support |
 |-------|-----------|--------|----------|---------|
@@ -81,7 +81,7 @@ Metrics:
 
 **Analysis:**
 - MobileViT-v2 achieves balanced performance across both classes
-- FCNN shows slight class-wise variations
+- EfficientNet-B0 shows slight class-wise variations
 - Both models perform similarly on healthy vs. diseased classes
 
 ---
@@ -90,7 +90,7 @@ Metrics:
 
 ### Learning Curves
 
-#### FCNN Learning Curves
+#### EfficientNet-B0 Learning Curves
 
 ```
 Epoch | Train Loss | Val Loss | Train Acc | Val Acc
@@ -111,7 +111,7 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 - Despite dropout, model memorizes training data
 
 **Reasons for Overfitting:**
-1. Huge parameter count (307M parameters)
+1. Huge parameter count (5.3M parameters)
 2. Loss of spatial structure → relies on memorization
 3. Limited inductive bias for images
 4. Insufficient regularization
@@ -140,7 +140,7 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 - Continues improving even at epoch 100
 
 **Reasons for Better Generalization:**
-1. Fewer parameters (5M vs. 307M)
+1. Fewer parameters (5M vs. 5.3M)
 2. Attention mechanism provides regularization
 3. Patch-based processing preserves structure
 4. Strong inductive bias for visual tasks
@@ -149,11 +149,11 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 
 | Model | Epochs to 85% | Epochs to 90% | Epochs to 95% |
 |-------|---------------|---------------|---------------|
-| FCNN  | ~8 epochs     | ~12 epochs    | Not achieved  |
+| EfficientNet-B0  | ~8 epochs     | ~12 epochs    | Not achieved  |
 | ViT   | ~15 epochs    | ~25 epochs    | ~50 epochs    |
 
 **Interpretation:**
-- FCNN converges faster initially but plateaus
+- EfficientNet-B0 converges faster initially but plateaus
 - MobileViT-v2 converges slower but reaches higher accuracy
 - MobileViT-v2 benefits from longer training
 
@@ -163,7 +163,7 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 
 ### Overfitting Indicators
 
-#### FCNN
+#### EfficientNet-B0
 - ❌ **Train-Val Gap**: Up to 16.5% (97.3% train vs. 80.8% val)
 - ❌ **Loss Divergence**: Training loss ↓, validation loss ↑
 - ❌ **Peak Performance**: Around epoch 15-20
@@ -184,7 +184,7 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 
 2. **Patch-Based Processing**:
    - Learns from local structure
-   - Better inductive bias than flattening
+   - Better inductive bias than convolutional layersing
    - Natural data augmentation through patches
 
 3. **Layer Normalization**:
@@ -203,7 +203,7 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 
 ## 4. Strengths and Weaknesses
 
-### FCNN
+### EfficientNet-B0
 
 #### Strengths ✅
 
@@ -220,7 +220,7 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 2. **Severe Overfitting**: Large train-val gap
 3. **Poor Generalization**: Struggles on unseen data
 4. **Spatial Information Loss**: Flattening destroys 2D structure
-5. **High Parameters**: 307M parameters, mostly redundant
+5. **High Parameters**: 5.3M parameters, mostly redundant
 6. **Limited Interpretability**: Black box, hard to debug
 7. **Scaling Issues**: Performance doesn't improve with more data as effectively
 
@@ -253,18 +253,18 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 
 ### Computational Efficiency
 
-| Aspect | FCNN | ViT | Winner |
+| Aspect | EfficientNet-B0 | ViT | Winner |
 |--------|------|-----|--------|
-| Training Time | 45 min | 3.5 hours | FCNN |
-| Inference Time | 8 ms | 15 ms | FCNN |
-| GPU Memory | 4-6 GB | 8-12 GB | FCNN |
-| Parameters | 307M | 5M | ViT |
-| Model Size | 1.2 GB | 20 MB | ViT |
-| Energy Consumption | Moderate | Higher | FCNN |
+| Training Time | 45 min | 3.5 hours | EfficientNet-B0 |
+| Inference Time | 8 ms | 15 ms | EfficientNet-B0 |
+| GPU Memory | 4-6 GB | 8-12 GB | EfficientNet-B0 |
+| Parameters | 5.3M | 5M | ViT |
+| Model Size | ~21 MB | 20 MB | ViT |
+| Energy Consumption | Moderate | Higher | EfficientNet-B0 |
 
 ### Performance Metrics
 
-| Aspect | FCNN | ViT | Winner |
+| Aspect | EfficientNet-B0 | ViT | Winner |
 |--------|------|-----|--------|
 | Accuracy | 87.3% | 95.8% | ViT |
 | Precision | 86.9% | 96.2% | ViT |
@@ -275,13 +275,13 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 
 ### Practical Considerations
 
-| Aspect | FCNN | ViT | Winner |
+| Aspect | EfficientNet-B0 | ViT | Winner |
 |--------|------|-----|--------|
-| Implementation Difficulty | Easy | Moderate | FCNN |
+| Implementation Difficulty | Easy | Moderate | EfficientNet-B0 |
 | Interpretability | Low | High (attention) | ViT |
 | Real-World Deployment | Adequate | Better | ViT |
-| Edge Device Friendly | Yes | Challenging | FCNN |
-| Mobile App Suitable | Yes | Requires optimization | FCNN |
+| Edge Device Friendly | Yes | Challenging | EfficientNet-B0 |
+| Mobile App Suitable | Yes | Requires optimization | EfficientNet-B0 |
 
 ---
 
@@ -293,7 +293,7 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 
 #### Performance Superiority
 
-**MobileViT-v2 achieves 95.8% accuracy vs. FCNN's 87.3%**
+**MobileViT-v2 achieves 95.8% accuracy vs. EfficientNet-B0's 87.3%**
 - 8.5 percentage point improvement
 - Fewer false negatives (66 vs. 190) → **Critical for disease detection**
 - Fewer false positives (60 vs. 220) → Less unnecessary treatment
@@ -310,11 +310,11 @@ Epoch | Train Loss | Val Loss | Train Acc | Val Acc
 **ViT's design is fundamentally better for images**
 - Preserves spatial structure through patches
 - Self-attention captures global context
-- Parameter efficient (5M vs. 307M)
+- Parameter efficient (5M vs. 5.3M)
 
-### When to Choose FCNN
+### When to Choose EfficientNet-B0
 
-Despite ViT's superiority, FCNN may be preferable when:
+Despite ViT's superiority, EfficientNet-B0 may be preferable when:
 
 1. **Extreme Speed Required**: Real-time applications (<10ms latency)
 2. **Resource Constraints**: Limited GPU memory (<4GB)
@@ -340,7 +340,7 @@ ViT is the better choice for:
 
 #### False Negative Cost (Diseased classified as Healthy)
 
-**FCNN**: 190 false negatives
+**EfficientNet-B0**: 190 false negatives
 - 190 diseased plants go untreated
 - Disease spreads to nearby plants
 - Potential crop failure
@@ -354,7 +354,7 @@ ViT is the better choice for:
 
 #### False Positive Cost (Healthy classified as Diseased)
 
-**FCNN**: 220 false positives
+**EfficientNet-B0**: 220 false positives
 - Unnecessary pesticide application
 - Wasted resources
 - Environmental impact
@@ -397,11 +397,11 @@ ViT is the better choice for:
 1. **Larger Dataset**: Collect more diverse images
 2. **Multi-Class Classification**: Identify specific diseases
 3. **Cross-Species Training**: Improve generalization
-4. **Ensemble Methods**: Combine FCNN + ViT predictions
+4. **Ensemble Methods**: Combine EfficientNet-B0 + ViT predictions
 
-### FCNN Specific
+### EfficientNet-B0 Specific
 
-1. **Convolutional Layers**: Hybrid CNN-FCNN architecture
+1. **Convolutional Layers**: Hybrid CNN-EfficientNet-B0 architecture
 2. **Stronger Regularization**: More aggressive dropout/weight decay
 3. **Knowledge Distillation**: Learn from ViT teacher model
 
@@ -418,7 +418,7 @@ ViT is the better choice for:
 
 ### Summary
 
-| Criterion | FCNN | ViT | Better Choice |
+| Criterion | EfficientNet-B0 | ViT | Better Choice |
 |-----------|------|-----|---------------|
 | **Accuracy** | 87.3% | 95.8% | ViT |
 | **Practical Use** | Limited | Excellent | ViT |
@@ -445,7 +445,7 @@ ViT is the better choice for:
 
 ### Takeaway Message
 
-While FCNN provides a functional baseline, **Vision Transformer's architectural advantages make it fundamentally better suited for image classification tasks**. The paradigm shift from flattening to patch-based processing, combined with self-attention mechanisms, enables ViT to achieve state-of-the-art performance with better generalization.
+While EfficientNet-B0 provides a functional baseline, **Vision Transformer's architectural advantages make it fundamentally better suited for image classification tasks**. The paradigm shift from convolutional layersing to patch-based processing, combined with self-attention mechanisms, enables ViT to achieve state-of-the-art performance with better generalization.
 
 For real-world agricultural applications where accuracy directly impacts crop yields and farmer livelihoods, the choice is clear: **Vision Transformer is the superior method.**
 

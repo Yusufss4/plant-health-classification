@@ -11,98 +11,52 @@ Both models take preprocessed leaf images (224×224×3) as input and output bina
 
 ---
 
-## Method 1: Fully Connected Neural Network (FCNN)
+## Method 1: EfficientNet-B0 (Efficient Convolutional Neural Network)
 
-### What is a Fully Connected Neural Network?
+### What is EfficientNet-B0?
 
-A **Fully Connected Neural Network** (also called Multi-Layer Perceptron) is a traditional deep learning architecture where:
-- Every neuron in one layer connects to every neuron in the next layer
-- Information flows forward through successive layers
-- Each connection has a learnable weight
+**EfficientNet-B0** is a state-of-the-art CNN architecture that achieves excellent accuracy with remarkable efficiency:
+- **Compound Scaling**: Uniformly scales network depth, width, and resolution
+- **Mobile Inverted Bottleneck (MBConv)**: Efficient convolution blocks
+- **Squeeze-and-Excitation**: Channel-wise attention mechanism
+- **ImageNet Pretrained**: Strong transfer learning features
+- **Only 5.3M parameters**: 58x fewer than traditional FCNN (307M)
 
-### How FCNNs Process Images
-
-#### Step 1: Flattening
-```
-Input Image: [224, 224, 3] 
-    ↓
-Flatten: [150,528] (224 × 224 × 3 = 150,528 features)
-```
-
-The 2D image is converted into a 1D vector by concatenating all pixels.
-
-#### Step 2: Dense Layers
-
-Data flows through multiple fully connected layers:
+### Architecture Overview
 
 ```
-Input (150,528) 
+Input [224×224×3]
     ↓
-Dense Layer 1 (2048 neurons) → ReLU → Dropout
+Stem Conv (stride 2) → [112×112×32]
     ↓
-Dense Layer 2 (1024 neurons) → ReLU → Dropout
+16 MBConv Blocks in 7 stages
+│  Expansion → Depthwise → SE → Projection
+│  Skip connections for residual learning
     ↓
-Dense Layer 3 (512 neurons) → ReLU → Dropout
+Global Average Pooling → [1280]
     ↓
-Dense Layer 4 (256 neurons) → ReLU → Dropout
+Dropout (0.2) + FC → [2 classes]
     ↓
-Output Layer (2 neurons) → Softmax
-    ↓
-[Healthy_probability, Diseased_probability]
+Softmax → [Healthy, Diseased]
 ```
 
-#### Step 3: Activation and Regularization
+### Why EfficientNet-B0 over Traditional FCNN?
 
-- **ReLU Activation**: `f(x) = max(0, x)` - Introduces non-linearity
-- **Dropout**: Randomly deactivates neurons during training (prevents overfitting)
-- **Batch Normalization**: Normalizes layer inputs (optional, improves training stability)
+**Traditional FCNN Issues:**
+- ❌ Flattening destroys spatial structure
+- ❌ 307M parameters → severe overfitting
+- ❌ No translation invariance
+- ❌ Poor local feature extraction
 
-### FCNN Architecture for This Project
+**EfficientNet-B0 Advantages:**
+- ✅ Preserves spatial structure (convolutions)
+- ✅ Only 5.3M parameters (58x reduction)
+- ✅ Translation invariant
+- ✅ Excellent local + global feature extraction
+- ✅ SE blocks for channel attention
+- ✅ Compound scaling for efficiency
+- ✅ ImageNet pretrained
 
-```python
-Model Architecture:
-==================================================
-Input Layer:        [150,528] (flattened 224×224×3)
-Hidden Layer 1:     [150,528 → 2048] + ReLU + Dropout(0.3)
-Hidden Layer 2:     [2048 → 1024] + ReLU + Dropout(0.3)
-Hidden Layer 3:     [1024 → 512] + ReLU + Dropout(0.3)
-Hidden Layer 4:     [512 → 256] + ReLU + Dropout(0.3)
-Output Layer:       [256 → 2] + Softmax
-==================================================
-Total Parameters: ~307 Million
-```
-
-### Key Hyperparameters
-
-- **Layers**: 5 layers (4 hidden + 1 output)
-- **Hidden Units**: [2048, 1024, 512, 256]
-- **Dropout Rate**: 0.3 (30% neurons randomly dropped during training)
-- **Activation**: ReLU for hidden layers, Softmax for output
-- **Initialization**: He/Xavier initialization for weights
-
-### Advantages of FCNN
-
-✅ **Simple Architecture**: Easy to understand and implement  
-✅ **Universal Approximation**: Theoretically can approximate any function  
-✅ **Fast Inference**: Once trained, predictions are fast  
-✅ **Established Method**: Well-studied with known best practices  
-
-### Limitations of FCNN for Images
-
-❌ **Loss of Spatial Structure**: Flattening destroys 2D spatial relationships  
-❌ **No Translation Invariance**: Small shifts in input cause large output changes  
-❌ **Huge Parameter Count**: Millions of parameters prone to overfitting  
-❌ **Ignores Local Patterns**: Cannot capture local features like edges or textures efficiently  
-❌ **Memory Intensive**: Large weight matrices require significant memory  
-
-### Why FCNN Struggles with Images
-
-**Example**: A diseased spot on a leaf has meaning based on:
-- Its **location** relative to leaf edges
-- Its **relationship** to nearby spots
-- Its **local texture** and pattern
-
-When flattened, pixels that were **neighbors in 2D** become **distant in 1D**, losing these critical spatial relationships.
 
 ---
 
@@ -267,7 +221,7 @@ Model Size: ~20 MB
 Efficiency: 17x fewer parameters than standard ViT!
 ```
 
-### Key Hyperparameters
+### Key Components
 
 - **Model Variant**: mobilevitv2_100 (balanced accuracy/efficiency)
 - **Input Size**: 224×224 pixels
@@ -326,22 +280,22 @@ Efficiency: 17x fewer parameters than standard ViT!
 
 ---
 
-## Comparison: FCNN vs. MobileViT-v2
+## Comparison: EfficientNet-B0 vs. MobileViT-v2
 
-| Aspect | FCNN | MobileViT-v2 |
+| Aspect | EfficientNet-B0 | MobileViT-v2 |
 |--------|------|--------------|
-| **Input Processing** | Flatten to 1D vector | Hybrid CNN + Transformer |
-| **Spatial Structure** | ❌ Lost during flattening | ✅ Preserved (CNN + attention) |
+| **Input Processing** | Convolutional layers | Hybrid CNN + Transformer |
+| **Spatial Structure** | ✅ Preserved by convolutions | ✅ Preserved (CNN + attention) |
 | **Context** | ❌ Local only (within layer) | ✅ Local (CNN) + Global (attention) |
-| **Parameters** | ~307M (huge) | ~5M (very efficient!) |
-| **Memory** | Very high | Low |
-| **Training Speed** | Fast per epoch | Moderate (faster than ViT) |
+| **Parameters** | ~5.3M (efficient) | ~5M (very efficient!) |
+| **Memory** | Moderate | Low |
+| **Training Speed** | Moderate per epoch | Moderate (faster than ViT) |
 | **Convergence** | Can converge quickly | Faster than standard ViT |
-| **Overfitting Risk** | ⚠️ High (many parameters) | ✅ Low (fewer params, pretrained) |
+| **Overfitting Risk** | ✅ Low (fewer params, pretrained) | ✅ Low (fewer params, pretrained) |
 | **Interpretability** | ❌ Black box | ✅ Attention visualization |
 | **Generalization** | ⚠️ Poor on unseen data | ✅ Excellent generalization |
 | **Mobile Deployment** | Possible | ✅ Optimized for mobile |
-| **Real-World Performance** | ~85-90% accuracy | ~93-97% accuracy |
+| **Real-World Performance** | ~90-93% accuracy | ~93-97% accuracy |
 
 ## Architecture Selection Rationale
 
@@ -356,7 +310,7 @@ Efficiency: 17x fewer parameters than standard ViT!
 
 ## Implementation Notes
 
-### FCNN Considerations
+### EfficientNet-B0 Considerations
 
 - **Weight Initialization**: Critical for convergence
 - **Learning Rate**: Sensitive, requires tuning

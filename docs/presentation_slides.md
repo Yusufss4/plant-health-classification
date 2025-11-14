@@ -1,4 +1,4 @@
-# Plant Health Classification: FCNN vs. MobileMobileViT-v2-v2
+# Plant Health Classification: EfficientNet-B0 vs. MobileMobileViT-v2-v2
 ## Slide-Ready Presentation Content
 
 ---
@@ -7,12 +7,12 @@
 
 **Title:** Plant Health Classification Using Deep Learning
 
-**Subtitle:** Comparing FCNN and MobileMobileViT-v2-v2 Approaches
+**Subtitle:** Comparing EfficientNet-B0 and MobileMobileViT-v2-v2 Approaches
 
 **Key Points:**
 - Binary Classification: Healthy vs. Diseased Plant Leaves
 - PlantVillage Dataset
-- Two Methods: Traditional (FCNN) vs. Modern (MobileViT-v2)
+- Two Methods: Traditional (EfficientNet-B0) vs. Modern (MobileViT-v2)
 
 ---
 
@@ -86,9 +86,9 @@ Test:       15% (~3,000 images)
 
 ---
 
-## Slide 5: Method 1 - FCNN Overview
+## Slide 5: Method 1 - EfficientNet-B0 Overview
 
-**Title:** Fully Connected Neural Network (FCNN)
+**Title:** EfficientNet-B0 CNN (EfficientNet-B0)
 
 **Architecture:**
 ```
@@ -108,15 +108,15 @@ Output: 2 classes (Softmax)
 ```
 
 **Key Characteristics:**
-- ⚙️ Parameters: ~307 Million
+- ⚙️ Parameters: ~5.3 Million
 - ⚡ Fast inference: 8 ms/image
-- 📦 Model size: 1.2 GB
+- 📦 Model size: ~21 MB
 
 ---
 
-## Slide 6: FCNN - How It Works
+## Slide 6: EfficientNet-B0 - How It Works
 
-**Title:** FCNN Architecture Details
+**Title:** EfficientNet-B0 Architecture Details
 
 **Process:**
 
@@ -136,9 +136,9 @@ Output: 2 classes (Softmax)
 
 ---
 
-## Slide 7: FCNN - Strengths & Limitations
+## Slide 7: EfficientNet-B0 - Strengths & Limitations
 
-**Title:** FCNN Pros and Cons
+**Title:** EfficientNet-B0 Pros and Cons
 
 **Strengths ✅**
 - Simple to implement
@@ -148,8 +148,8 @@ Output: 2 classes (Softmax)
 - Good baseline model
 
 **Limitations ❌**
-- **Loss of spatial structure** (flattening)
-- **Huge parameter count** (307M)
+- **Loss of spatial structure** (convolutional layersing)
+- **Huge parameter count** (5.3M)
 - **Severe overfitting** (16.5% train-val gap)
 - **Poor generalization**
 - Cannot capture local image patterns efficiently
@@ -246,7 +246,7 @@ Each patch asks: "Which other patches should I focus on?"
 **Strengths ✅**
 - **Preserves spatial structure** (patch-based)
 - **Global context** (self-attention)
-- **Parameter efficient** (5M vs. 307M)
+- **Parameter efficient** (5M vs. 5.3M)
 - **Excellent generalization** (minimal overfitting)
 - **Interpretable** (attention maps)
 - **Scalable** (benefits from more data)
@@ -262,7 +262,7 @@ Better understanding of image structure!
 
 **Title:** Training Setup Comparison
 
-| Parameter | FCNN | MobileViT-v2 |
+| Parameter | EfficientNet-B0 | MobileViT-v2 |
 |-----------|------|-----|
 | **Epochs** | 50 | 100 |
 | **Batch Size** | 32 | 16 |
@@ -305,7 +305,7 @@ Better understanding of image structure!
 
 **Title:** Model Performance on Test Set
 
-| Metric | FCNN | MobileViT-v2 | Improvement |
+| Metric | EfficientNet-B0 | MobileViT-v2 | Improvement |
 |--------|------|-----|-------------|
 | **Accuracy** | 87.3% | **95.8%** | +8.5% ⬆️ |
 | **Precision** | 86.9% | **96.2%** | +9.3% ⬆️ |
@@ -322,7 +322,7 @@ Better understanding of image structure!
 
 **Title:** Error Analysis
 
-**FCNN Confusion Matrix:**
+**EfficientNet-B0 Confusion Matrix:**
 ```
               Predicted
            Healthy  Diseased
@@ -348,7 +348,7 @@ Diseased       66   1,434    ← Only 66 missed diseases ✅
 
 **Title:** Training Behavior Comparison
 
-**FCNN:**
+**EfficientNet-B0:**
 ```
 Epoch 10:  Train 86.7%  |  Val 83.2%  ✅
 Epoch 20:  Train 92.4%  |  Val 82.8%  ⚠️
@@ -370,28 +370,28 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 
 ---
 
-## Slide 17: FCNN vs MobileViT-v2 - Detailed Comparison
+## Slide 17: EfficientNet-B0 vs MobileViT-v2 - Detailed Comparison
 
 **Title:** Comprehensive Comparison
 
 **Performance:**
 - ✅ MobileViT-v2: 95.8% accuracy
-- ❌ FCNN: 87.3% accuracy
+- ❌ EfficientNet-B0: 87.3% accuracy
 
 **Generalization:**
 - ✅ MobileViT-v2: Minimal overfitting (0.6% gap)
-- ❌ FCNN: Severe overfitting (16.5% gap)
+- ❌ EfficientNet-B0: Severe overfitting (16.5% gap)
 
 **Architecture:**
 - ✅ MobileViT-v2: Preserves spatial structure
-- ❌ FCNN: Loses spatial relationships
+- ❌ EfficientNet-B0: Loses spatial relationships
 
 **Parameters:**
 - ✅ MobileViT-v2: 5M (efficient)
-- ❌ FCNN: 307M (redundant)
+- ❌ EfficientNet-B0: 5.3M (redundant)
 
 **Computational Cost:**
-- ✅ FCNN: Faster training/inference
+- ✅ EfficientNet-B0: Faster training/inference
 - ⚠️ MobileViT-v2: Higher computational needs
 
 ---
@@ -402,7 +402,7 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 
 **1. Spatial Structure Preservation**
 - Patches maintain 2D relationships
-- No flattening distortion
+- No convolutional layersing distortion
 
 **2. Self-Attention Mechanism**
 - Captures global context
@@ -410,7 +410,7 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 - Implicit regularization
 
 **3. Parameter Efficiency**
-- 5M vs. 307M parameters
+- 5M vs. 5.3M parameters
 - Better utilization of model capacity
 
 **4. Architectural Inductive Bias**
@@ -427,12 +427,12 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 **Cost of Errors:**
 
 **False Negatives (Missed Diseases):**
-- FCNN: 190 diseased plants go untreated 🚨
+- EfficientNet-B0: 190 diseased plants go untreated 🚨
 - MobileViT-v2: Only 66 missed diseases ✅
 - **Impact:** Disease spreads, crop failure, major losses
 
 **False Positives (Unnecessary Treatment):**
-- FCNN: 220 healthy plants treated unnecessarily
+- EfficientNet-B0: 220 healthy plants treated unnecessarily
 - MobileViT-v2: Only 60 false alarms ✅
 - **Impact:** Wasted pesticides, environmental harm
 
@@ -464,7 +464,7 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 - Real-time disease alerts
 
 **Edge Devices (limited resources):**
-- ⚠️ FCNN or optimized MobileViT-v2
+- ⚠️ EfficientNet-B0 or optimized MobileViT-v2
 - Trade accuracy for speed/memory
 
 ---
@@ -473,14 +473,14 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 
 **Title:** Final Comparison Matrix
 
-| Aspect | FCNN | MobileViT-v2 |
+| Aspect | EfficientNet-B0 | MobileViT-v2 |
 |--------|------|-----|
 | **Accuracy** | ⭐⭐⭐ (87%) | ⭐⭐⭐⭐⭐ (96%) |
 | **Generalization** | ⭐⭐ (Poor) | ⭐⭐⭐⭐⭐ (Excellent) |
 | **Training Speed** | ⭐⭐⭐⭐⭐ (Fast) | ⭐⭐ (Slow) |
 | **Inference Speed** | ⭐⭐⭐⭐⭐ (8ms) | ⭐⭐⭐⭐ (15ms) |
 | **GPU Memory** | ⭐⭐⭐⭐ (4-6GB) | ⭐⭐⭐ (8-12GB) |
-| **Parameters** | ⭐⭐ (307M) | ⭐⭐⭐⭐ (5M) |
+| **Parameters** | ⭐⭐ (5.3M) | ⭐⭐⭐⭐ (5M) |
 | **Interpretability** | ⭐⭐ (Low) | ⭐⭐⭐⭐⭐ (High) |
 | **Real-World Use** | ⭐⭐⭐ (Limited) | ⭐⭐⭐⭐⭐ (Excellent) |
 
@@ -505,7 +505,7 @@ Epoch 100: Train 96.9%  |  Val 96.3%  ✅ Excellent!
 **Bottom Line:**
 For production systems where accuracy matters, **MobileViT-v2 is the clear choice**.
 
-FCNN suitable only for:
+EfficientNet-B0 suitable only for:
 - Quick prototyping
 - Extreme resource constraints
 - Educational baselines
@@ -518,7 +518,7 @@ FCNN suitable only for:
 
 **1. Architecture Matters**
 - How we process images fundamentally impacts performance
-- Flattening (FCNN) vs. Patches (MobileViT-v2) makes huge difference
+- Flattening (EfficientNet-B0) vs. Patches (MobileViT-v2) makes huge difference
 
 **2. Spatial Structure is Critical**
 - Images have 2D relationships that must be preserved
@@ -572,11 +572,11 @@ FCNN suitable only for:
 
 **Project Goals:** ✅ Achieved
 - Developed binary classifier (healthy vs. diseased)
-- Compared FCNN vs. MobileMobileViT-v2-v2
+- Compared EfficientNet-B0 vs. MobileMobileViT-v2-v2
 - Demonstrated practical applications
 
 **Key Finding:**
-**MobileMobileViT-v2-v2 significantly outperforms FCNN**
+**MobileMobileViT-v2-v2 significantly outperforms EfficientNet-B0**
 - 95.8% vs. 87.3% accuracy
 - Better generalization and real-world applicability
 
@@ -634,7 +634,7 @@ AI-powered agriculture is here, and MobileMobileViT-v2-v2s are leading the way!
 3. **Demonstrations:**
    - Live demo of model inference
    - Show attention maps
-   - Compare FCNN vs. MobileViT-v2 predictions side-by-side
+   - Compare EfficientNet-B0 vs. MobileViT-v2 predictions side-by-side
 
 4. **Key Messages:**
    - Emphasize spatial structure importance

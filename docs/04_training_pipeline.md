@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the complete training pipeline for both FCNN and Vision Transformer models, including preprocessing, training configuration, optimization, and evaluation.
+This document describes the complete training pipeline for both EfficientNet-B0 and Vision Transformer models, including preprocessing, training configuration, optimization, and evaluation.
 
 ---
 
@@ -76,7 +76,7 @@ val_test_transforms = Compose([
 ### Stage 3: DataLoader Configuration
 
 ```python
-# FCNN DataLoader
+# EfficientNet-B0 DataLoader
 train_loader_fcnn = DataLoader(
     train_dataset,
     batch_size=32,
@@ -96,7 +96,7 @@ train_loader_vit = DataLoader(
 ```
 
 **Key Parameters:**
-- **Batch Size**: FCNN uses 32, ViT uses 16 (memory constraints)
+- **Batch Size**: EfficientNet-B0 uses 32, ViT uses 16 (memory constraints)
 - **Shuffle**: True for training, False for val/test
 - **Num Workers**: Parallel data loading (4-8 workers)
 - **Pin Memory**: Speeds up CPU-to-GPU data transfer
@@ -105,10 +105,10 @@ train_loader_vit = DataLoader(
 
 ## 2. Model Initialization
 
-### FCNN Initialization
+### EfficientNet-B0 Initialization
 
 ```python
-model_fcnn = FCNN(
+model_fcnn = EfficientNet-B0(
     input_size=224 * 224 * 3,  # 150,528
     hidden_sizes=[2048, 1024, 512, 256],
     num_classes=2,
@@ -199,7 +199,7 @@ criterion = nn.CrossEntropyLoss(
 
 ## 4. Optimization Strategy
 
-### FCNN Optimizer
+### EfficientNet-B0 Optimizer
 
 ```python
 optimizer_fcnn = torch.optim.Adam(
@@ -235,7 +235,7 @@ optimizer_vit = torch.optim.AdamW(
 
 ### Learning Rate Scheduling
 
-#### FCNN: ReduceLROnPlateau
+#### EfficientNet-B0: ReduceLROnPlateau
 
 ```python
 scheduler_fcnn = ReduceLROnPlateau(
@@ -276,7 +276,7 @@ warmup_scheduler = LinearLR(
 
 ## 5. Training Loop
 
-### FCNN Training Loop
+### EfficientNet-B0 Training Loop
 
 ```python
 num_epochs = 50
@@ -356,7 +356,7 @@ for epoch in range(num_epochs):
     else:
         scheduler_vit.step()
     
-    # Training phase (same structure as FCNN)
+    # Training phase (same structure as EfficientNet-B0)
     # ...
     
     # Gradient clipping (prevents exploding gradients)
@@ -549,7 +549,7 @@ model.eval()
 
 ### Computational Requirements
 
-#### FCNN
+#### EfficientNet-B0
 - **GPU Memory**: ~4-6 GB
 - **Training Time**: ~30-60 minutes (50 epochs, single GPU)
 - **Inference Time**: ~5-10 ms per image
@@ -569,7 +569,7 @@ model.eval()
 
 ## Training Configuration Summary
 
-| Parameter | FCNN | ViT |
+| Parameter | EfficientNet-B0 | ViT |
 |-----------|------|-----|
 | **Epochs** | 50 | 100 |
 | **Batch Size** | 32 | 16 |
