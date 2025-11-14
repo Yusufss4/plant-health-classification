@@ -1,8 +1,8 @@
 """
 Comprehensive Model Comparison Script
 
-This script performs a complete evaluation and comparison of FCNN (EfficientNet-B0)
-and ViT (MobileViT-v2) models with all required metrics and visualizations.
+This script performs a complete evaluation and comparison of EfficientNet-B0
+and MobileViT-v2 models with all required metrics and visualizations.
 
 Usage:
     python compare_models.py
@@ -22,7 +22,7 @@ from utils import (
 
 
 def main():
-    """Compare FCNN and ViT models."""
+    """Compare EfficientNet-B0 and MobileViT-v2 models."""
     # Hardcoded configuration
     fcnn_weights = 'checkpoints/fcnn_best.pth'
     vit_weights = 'checkpoints/vit_best.pth'
@@ -50,9 +50,9 @@ def main():
     
     print(f"Test set: {len(test_loader.dataset)} samples")
     
-    # Evaluate FCNN (EfficientNet-B0)
+    # Evaluate EfficientNet-B0
     print("\n" + "="*80)
-    print("EVALUATING FCNN (EfficientNet-B0)")
+    print("EVALUATING EfficientNet-B0")
     print("="*80)
     
     fcnn_results = None
@@ -69,21 +69,21 @@ def main():
         fcnn_model = fcnn_model.to(device)
         fcnn_model.eval()
         
-        print("Evaluating FCNN...")
+        print("Evaluating EfficientNet-B0...")
         fcnn_results = evaluate_model(fcnn_model, test_loader, device)
         
-        print("\nFCNN Results:")
+        print("\nEfficientNet-B0 Results:")
         print_evaluation_results(fcnn_results)
         
         # Generate plots
         fcnn_dir = os.path.join(output_dir, 'fcnn')
-        plot_comprehensive_evaluation(fcnn_results, 'FCNN', fcnn_dir)
+        plot_comprehensive_evaluation(fcnn_results, 'EfficientNet-B0', fcnn_dir)
     else:
-        print(f"FCNN weights not found at {fcnn_weights}. Skipping...")
+        print(f"EfficientNet-B0 weights not found at {fcnn_weights}. Skipping...")
     
     # Evaluate ViT (MobileViT-v2)
     print("\n" + "="*80)
-    print("EVALUATING ViT (MobileViT-v2)")
+    print("EVALUATING MobileViT-v2")
     print("="*80)
     
     vit_results = None
@@ -100,17 +100,17 @@ def main():
         vit_model = vit_model.to(device)
         vit_model.eval()
         
-        print("Evaluating ViT...")
+        print("Evaluating MobileViT-v2...")
         vit_results = evaluate_model(vit_model, test_loader, device)
         
-        print("\nViT Results:")
+        print("\nMobileViT-v2 Results:")
         print_evaluation_results(vit_results)
         
         # Generate plots
         vit_dir = os.path.join(output_dir, 'vit')
-        plot_comprehensive_evaluation(vit_results, 'ViT', vit_dir)
+        plot_comprehensive_evaluation(vit_results, 'MobileViT-v2', vit_dir)
     else:
-        print(f"ViT weights not found at {vit_weights}. Skipping...")
+        print(f"MobileViT-v2 weights not found at {vit_weights}. Skipping...")
     
     # Compare models
     if fcnn_results and vit_results:
@@ -122,8 +122,8 @@ def main():
         compare_models_comprehensive(
             fcnn_results,
             vit_results,
-            'FCNN',
-            'ViT',
+            'EfficientNet-B0',
+            'MobileViT-v2',
             comparison_dir
         )
         
@@ -134,7 +134,7 @@ def main():
             f.write("MODEL COMPARISON RESULTS\n")
             f.write("="*80 + "\n\n")
             
-            f.write("FCNN (EfficientNet-B0):\n")
+            f.write("EfficientNet-B0:\n")
             f.write("-"*80 + "\n")
             f.write(f"Accuracy:  {fcnn_results['accuracy']:.4f} ({fcnn_results['accuracy']*100:.2f}%)\n")
             f.write(f"Precision: {fcnn_results['precision']:.4f} ({fcnn_results['precision']*100:.2f}%)\n")
@@ -143,7 +143,7 @@ def main():
             f.write(f"TP: {fcnn_results['true_positive']}, TN: {fcnn_results['true_negative']}\n")
             f.write(f"FP: {fcnn_results['false_positive']}, FN: {fcnn_results['false_negative']}\n\n")
             
-            f.write("ViT (MobileViT-v2):\n")
+            f.write("MobileViT-v2:\n")
             f.write("-"*80 + "\n")
             f.write(f"Accuracy:  {vit_results['accuracy']:.4f} ({vit_results['accuracy']*100:.2f}%)\n")
             f.write(f"Precision: {vit_results['precision']:.4f} ({vit_results['precision']*100:.2f}%)\n")
@@ -153,7 +153,7 @@ def main():
             f.write(f"FP: {vit_results['false_positive']}, FN: {vit_results['false_negative']}\n\n")
             
             accuracy_diff = (vit_results['accuracy'] - fcnn_results['accuracy']) * 100
-            winner = 'ViT' if accuracy_diff > 0 else 'FCNN'
+            winner = 'MobileViT-v2' if accuracy_diff > 0 else 'EfficientNet-B0'
             f.write(f"Winner: {winner}\n")
             f.write(f"Accuracy difference: {accuracy_diff:+.2f}%\n")
         
@@ -165,9 +165,9 @@ def main():
     print(f"\nAll results and plots saved to: {output_dir}")
     print("\nGenerated files:")
     if fcnn_results:
-        print(f"  - FCNN plots: {output_dir}fcnn/")
+        print(f"  - EfficientNet-B0 plots: {output_dir}fcnn/")
     if vit_results:
-        print(f"  - ViT plots: {output_dir}vit/")
+        print(f"  - MobileViT-v2 plots: {output_dir}vit/")
     if fcnn_results and vit_results:
         print(f"  - Comparison plots: {output_dir}comparison/")
         print(f"  - Results summary: {output_dir}comparison_results.txt")

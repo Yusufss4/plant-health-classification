@@ -113,9 +113,9 @@ def evaluate_single_model(model_type='fcnn'):
 
 
 def main():
-    """Evaluate FCNN model by default."""
+    """Evaluate EfficientNet-B0 model by default."""
     print("="*80)
-    print("Evaluating FCNN Model")
+    print("Evaluating EfficientNet-B0 Model")
     print("="*80)
     evaluate_single_model(model_type='fcnn')
 

@@ -199,13 +199,13 @@ def train_model(model_type='fcnn'):
 def main():
     """Train both models."""
     print("="*80)
-    print("Training FCNN Model")
+    print("Training EfficientNet-B0 Model")
     print("="*80)
     train_model(model_type='fcnn')
     
     print("\n\n")
     print("="*80)
-    print("Training ViT Model")
+    print("Training MobileViT-v2 Model")
     print("="*80)
     train_model(model_type='vit')
 
