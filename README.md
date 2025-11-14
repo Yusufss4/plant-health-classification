@@ -27,38 +27,34 @@ data/
 
 ### Train Models
 
-Train EfficientNet-B0:
+Train both FCNN (EfficientNet-B0) and ViT (MobileViT-v2) models:
 ```bash
-python train.py --model fcnn --epochs 50 --batch-size 32
+python train.py
 ```
 
-Train MobileViT-v2:
-```bash
-python train.py --model vit --epochs 50 --batch-size 16
-```
+This will:
+- Train FCNN for 50 epochs with batch_size=32, lr=0.001
+- Train ViT for 100 epochs with batch_size=16, lr=0.0001
+- Save best models to `checkpoints/fcnn_best.pth` and `checkpoints/vit_best.pth`
 
 ### Evaluate Models
 
-Evaluate a single model:
+Evaluate a single model (FCNN by default):
 ```bash
-python evaluate.py --model fcnn --weights checkpoints/fcnn_best.pth
-python evaluate.py --model vit --weights checkpoints/vit_best.pth
+python evaluate.py
 ```
+
+This will evaluate the FCNN model on the test set and display metrics with confusion matrix.
 
 ### Compare Models
 
 Compare both models with comprehensive metrics and plots:
 ```bash
-python compare_models.py \
-    --efficientnet-weights checkpoints/efficientnet_best.pth \
-    --mobilevit-weights checkpoints/mobilevit_best.pth \
-    --data-dir data/ \
-    --output-dir results/
+python compare_models.py
 ```
 
 This generates:
-- Confusion matrices
+- Confusion matrices for both models
 - Accuracy, precision, recall, F1-score metrics
-- Precision/recall/F1-score vs threshold plots
-- Precision-Recall curves
+- Comprehensive evaluation plots in `results/` directory
 - Side-by-side model comparison
