@@ -2,11 +2,9 @@
 Evaluation script for plant health classification models.
 
 Usage:
-    python evaluate.py --model fcnn --weights checkpoints/fcnn_best.pth
-    python evaluate.py --model vit --weights checkpoints/vit_best.pth
+    python evaluate.py
 """
 
-import argparse
 import os
 import torch
 
@@ -66,181 +64,60 @@ def load_model(model_type, weights_path, device):
     return model
 
 
-def evaluate_on_dataset(model, dataloader, device, dataset_name='Test'):
+def evaluate_single_model(model_type='fcnn'):
     """
-    Evaluate model on a dataset and print results.
+    Evaluate a single model on the test set.
     
     Args:
-        model: PyTorch model
-        dataloader: DataLoader for the dataset
-        device: Device to run evaluation on
-        dataset_name: Name of the dataset (for display)
+        model_type: Type of model to evaluate ('fcnn' or 'vit')
     """
-    print(f'\n{"="*80}')
-    print(f'Evaluating on {dataset_name} Set ({len(dataloader.dataset)} samples)')
-    print(f'{"="*80}')
-    
-    # Evaluate
-    results = evaluate_model(model, dataloader, device)
-    
-    # Print results
-    print_evaluation_results(results)
-    
-    return results
-
-
-def compare_two_models(args):
-    """Compare two models side by side."""
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f'Using device: {device}')
-    
-    # Load data
-    print('\nLoading test data...')
-    _, _, test_loader = create_data_loaders(
-        train_dir=args.train_dir,
-        val_dir=args.val_dir,
-        test_dir=args.test_dir,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers
-    )
-    
-    # Load both models
-    model1 = load_model(args.model1, args.weights1, device)
-    model2 = load_model(args.model2, args.weights2, device)
-    
-    # Evaluate both models
-    print(f'\n{"#"*80}')
-    print(f'MODEL 1: {args.model1.upper()}')
-    print(f'{"#"*80}')
-    results1 = evaluate_on_dataset(model1, test_loader, device, 'Test')
-    
-    print(f'\n{"#"*80}')
-    print(f'MODEL 2: {args.model2.upper()}')
-    print(f'{"#"*80}')
-    results2 = evaluate_on_dataset(model2, test_loader, device, 'Test')
-    
-    # Compare models
-    from utils import compare_models
-    print('\n')
-    compare_models(
-        results1, 
-        results2, 
-        model1_name=args.model1.upper(),
-        model2_name=args.model2.upper()
-    )
-    
-    # Plot confusion matrices side by side
-    if args.save_plots:
-        import matplotlib.pyplot as plt
-        
-        fig, axes = plt.subplots(1, 2, figsize=(16, 6))
-        
-        # Model 1
-        plt.sca(axes[0])
-        plot_confusion_matrix(
-            results1['confusion_matrix'],
-            save_path=None
-        )
-        axes[0].set_title(f'{args.model1.upper()} - Accuracy: {results1["accuracy"]:.2%}')
-        
-        # Model 2
-        plt.sca(axes[1])
-        plot_confusion_matrix(
-            results2['confusion_matrix'],
-            save_path=None
-        )
-        axes[1].set_title(f'{args.model2.upper()} - Accuracy: {results2["accuracy"]:.2%}')
-        
-        plt.tight_layout()
-        save_path = 'model_comparison.png'
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f'\nComparison plot saved to {save_path}')
-        plt.show()
-
-
-def main():
-    parser = argparse.ArgumentParser(description='Evaluate plant health classification model')
-    
-    # Model arguments
-    parser.add_argument('--model', type=str, choices=['fcnn', 'vit'],
-                        help='Model architecture (fcnn or vit)')
-    parser.add_argument('--weights', type=str,
-                        help='Path to model weights')
-    
-    # Comparison mode
-    parser.add_argument('--compare', action='store_true',
-                        help='Compare two models')
-    parser.add_argument('--model1', type=str, choices=['fcnn', 'vit'],
-                        help='First model for comparison')
-    parser.add_argument('--weights1', type=str,
-                        help='Weights for first model')
-    parser.add_argument('--model2', type=str, choices=['fcnn', 'vit'],
-                        help='Second model for comparison')
-    parser.add_argument('--weights2', type=str,
-                        help='Weights for second model')
-    
-    # Data arguments
-    parser.add_argument('--train-dir', type=str, default='data/train',
-                        help='Path to training data directory')
-    parser.add_argument('--val-dir', type=str, default='data/val',
-                        help='Path to validation data directory')
-    parser.add_argument('--test-dir', type=str, default='data/test',
-                        help='Path to test data directory')
-    parser.add_argument('--batch-size', type=int, default=32,
-                        help='Batch size for evaluation')
-    parser.add_argument('--num-workers', type=int, default=4,
-                        help='Number of data loading workers')
-    
-    # Visualization
-    parser.add_argument('--save-plots', action='store_true',
-                        help='Save visualization plots')
-    parser.add_argument('--output-dir', type=str, default='results',
-                        help='Directory to save results')
-    
-    args = parser.parse_args()
-    
-    # Validate arguments
-    if args.compare:
-        if not all([args.model1, args.weights1, args.model2, args.weights2]):
-            parser.error('--compare requires --model1, --weights1, --model2, and --weights2')
-        compare_two_models(args)
-        return
-    
-    if not args.model or not args.weights:
-        parser.error('Single model evaluation requires --model and --weights')
+    # Hardcoded configuration
+    test_dir = 'data/test'
+    batch_size = 32
+    model_path = f'checkpoints/{model_type}_best.pth'
+    num_workers = 4
     
     # Set device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
     
-    # Create output directory
-    if args.save_plots:
-        os.makedirs(args.output_dir, exist_ok=True)
-    
     # Load model
-    model = load_model(args.model, args.weights, device)
+    model = load_model(model_type, model_path, device)
     
     # Load data
     print('\nLoading test data...')
     _, _, test_loader = create_data_loaders(
-        train_dir=args.train_dir,
-        val_dir=args.val_dir,
-        test_dir=args.test_dir,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers
+        train_dir='data/train',
+        val_dir='data/val',
+        test_dir=test_dir,
+        batch_size=batch_size,
+        num_workers=num_workers
     )
     
     # Evaluate
-    results = evaluate_on_dataset(model, test_loader, device, 'Test')
+    print(f'\n{"="*80}')
+    print(f'Evaluating on Test Set ({len(test_loader.dataset)} samples)')
+    print(f'{"="*80}')
     
-    # Save plots
-    if args.save_plots:
-        cm_path = os.path.join(args.output_dir, f'{args.model}_confusion_matrix.png')
-        plot_confusion_matrix(results['confusion_matrix'], save_path=cm_path)
-        
-        print(f'\nResults saved to {args.output_dir}/')
+    results = evaluate_model(model, test_loader, device)
+    
+    # Print results
+    print_evaluation_results(results)
+    
+    # Show confusion matrix
+    plot_confusion_matrix(results['confusion_matrix'], save_path=None)
     
     print('\nEvaluation completed!')
+    
+    return results
+
+
+def main():
+    """Evaluate FCNN model by default."""
+    print("="*80)
+    print("Evaluating FCNN Model")
+    print("="*80)
+    evaluate_single_model(model_type='fcnn')
 
 
 if __name__ == '__main__':
