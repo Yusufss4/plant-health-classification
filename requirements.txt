@@ -1,0 +1,27 @@
+# Core deep learning framework
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Data manipulation and numerical computations
+numpy>=1.24.0
+
+# Image processing
+Pillow>=9.5.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Evaluation metrics
+scikit-learn>=1.2.0
+
+# Progress bars
+tqdm>=4.65.0
+
+# Optional: For Jupyter notebook support
+# jupyter>=1.0.0
+# ipykernel>=6.22.0
+
+# Optional: For model optimization
+# onnx>=1.13.0
+# onnxruntime>=1.14.0
