@@ -19,13 +19,12 @@ MobileViT-v2 is used for:
 - Pretrained on ImageNet-1k
 """
 
-from .efficientnet import EfficientNetB0, FCNN, create_fcnn_model
+from .efficientnet import EfficientNetB0, create_cnn_model
 from .vit import MobileViTv2, VisionTransformer, create_vit_model
 
 __all__ = [
     'EfficientNetB0',
-    'FCNN',  # Alias for backwards compatibility
-    'create_fcnn_model',
+    'create_cnn_model',
     'MobileViTv2',
     'VisionTransformer',  # Alias for backwards compatibility
     'create_vit_model'
