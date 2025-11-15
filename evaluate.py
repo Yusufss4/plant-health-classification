@@ -2,9 +2,13 @@
 Evaluation script for plant health classification models.
 
 Usage:
-    python evaluate.py
+    python evaluate.py [--model MODEL_TYPE]
+    
+Arguments:
+    --model: Model type to evaluate ('cnn' or 'vit'). Default: 'cnn'
 """
 
+import argparse
 import os
 import torch
 
@@ -113,11 +117,27 @@ def evaluate_single_model(model_type='cnn'):
 
 
 def main():
-    """Evaluate EfficientNet-B0 model by default."""
+    """Evaluate model based on command line argument."""
+    parser = argparse.ArgumentParser(description='Evaluate plant health classification model')
+    parser.add_argument(
+        '--model',
+        type=str,
+        default='cnn',
+        choices=['cnn', 'vit'],
+        help='Model type to evaluate (cnn or vit). Default: cnn'
+    )
+    
+    args = parser.parse_args()
+    
+    model_names = {
+        'cnn': 'EfficientNet-B0',
+        'vit': 'DINOv2 Vision Transformer'
+    }
+    
     print("="*80)
-    print("Evaluating EfficientNet-B0 Model")
+    print(f"Evaluating {model_names[args.model]} Model")
     print("="*80)
-    evaluate_single_model(model_type='cnn')
+    evaluate_single_model(model_type=args.model)
 
 
 if __name__ == '__main__':
