@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 
-from models import create_fcnn_model, create_vit_model
+from models import create_cnn_model, create_vit_model
 from utils import create_data_loaders, calculate_metrics_per_epoch
 
 
@@ -68,12 +68,12 @@ def validate(model, val_loader, criterion, device, epoch):
     return val_loss, val_acc
 
 
-def train_model(model_type='fcnn'):
+def train_model(model_type='cnn'):
     """Main training function."""
     
     # Hardcoded configuration
     data_dir = 'data/'
-    if model_type == 'fcnn':
+    if model_type == 'cnn':
         epochs = 50
         batch_size = 32
         lr = 0.001
@@ -84,7 +84,7 @@ def train_model(model_type='fcnn'):
         lr = 0.0001
         dropout = 0.1
     else:
-        raise ValueError(f"Unknown model type: {model_type}. Use 'fcnn' or 'vit'")
+        raise ValueError(f"Unknown model type: {model_type}. Use 'cnn' or 'vit'")
     
     weight_decay = 1e-4
     checkpoint_dir = 'checkpoints'
@@ -109,8 +109,8 @@ def train_model(model_type='fcnn'):
     
     # Create model
     print(f'\nCreating {model_type.upper()} model...')
-    if model_type == 'fcnn':
-        model = create_fcnn_model(num_classes=2, dropout_rate=dropout)
+    if model_type == 'cnn':
+        model = create_cnn_model(num_classes=2, dropout_rate=dropout)
     else:  # vit
         model = create_vit_model(num_classes=2, dropout=dropout)
     
@@ -201,7 +201,7 @@ def main():
     print("="*80)
     print("Training EfficientNet-B0 Model")
     print("="*80)
-    train_model(model_type='fcnn')
+    train_model(model_type='cnn')
     
     print("\n\n")
     print("="*80)

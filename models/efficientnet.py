@@ -90,16 +90,9 @@ class EfficientNetB0(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-# Alias for backward compatibility
-FCNN = EfficientNetB0
-
-
-def create_fcnn_model(num_classes=2, dropout=0.2, pretrained=True):
+def create_cnn_model(num_classes=2, dropout=0.2, pretrained=True):
     """
     Factory function to create EfficientNet-B0 model.
-    
-    Note: This function is named create_fcnn_model for backward compatibility,
-    but it now creates an EfficientNet-B0 model instead of a traditional FCNN.
     
     Args:
         num_classes (int): Number of output classes
@@ -133,7 +126,7 @@ if __name__ == "__main__":
     print("EfficientNet-B0 Model for Plant Health Classification")
     print("=" * 80)
     
-    model = create_fcnn_model(num_classes=2, pretrained=False)
+    model = create_cnn_model(num_classes=2, pretrained=False)
     
     print("\n1. Model Architecture:")
     print("-" * 80)

@@ -50,9 +50,7 @@ python train.py
 This will:
 - Train EfficientNet-B0 for 50 epochs with batch_size=32, lr=0.001
 - Train MobileViT-v2 for 100 epochs with batch_size=16, lr=0.0001
-- Save best models to `checkpoints/fcnn_best.pth` and `checkpoints/vit_best.pth`
-
-Note: The model type parameter uses 'fcnn' for EfficientNet-B0 and 'vit' for MobileViT-v2 for backward compatibility.
+- Save best models to `checkpoints/cnn_best.pth` and `checkpoints/vit_best.pth`
 
 ### Evaluate Models
 

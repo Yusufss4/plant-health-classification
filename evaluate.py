@@ -8,7 +8,7 @@ Usage:
 import os
 import torch
 
-from models import create_fcnn_model, create_vit_model
+from models import create_cnn_model, create_vit_model
 from utils import (
     create_data_loaders,
     evaluate_model,
@@ -22,7 +22,7 @@ def load_model(model_type, weights_path, device):
     Load a trained model from checkpoint.
     
     Args:
-        model_type: Type of model ('fcnn' or 'vit')
+        model_type: Type of model ('cnn' or 'vit')
         weights_path: Path to model weights
         device: Device to load model on
     
@@ -32,8 +32,8 @@ def load_model(model_type, weights_path, device):
     print(f'Loading {model_type.upper()} model from {weights_path}...')
     
     # Create model
-    if model_type == 'fcnn':
-        model = create_fcnn_model(num_classes=2)
+    if model_type == 'cnn':
+        model = create_cnn_model(num_classes=2)
     elif model_type == 'vit':
         model = create_vit_model(num_classes=2)
     else:
@@ -64,12 +64,12 @@ def load_model(model_type, weights_path, device):
     return model
 
 
-def evaluate_single_model(model_type='fcnn'):
+def evaluate_single_model(model_type='cnn'):
     """
     Evaluate a single model on the test set.
     
     Args:
-        model_type: Type of model to evaluate ('fcnn' or 'vit')
+        model_type: Type of model to evaluate ('cnn' or 'vit')
     """
     # Hardcoded configuration
     test_dir = 'data/test'
@@ -117,7 +117,7 @@ def main():
     print("="*80)
     print("Evaluating EfficientNet-B0 Model")
     print("="*80)
-    evaluate_single_model(model_type='fcnn')
+    evaluate_single_model(model_type='cnn')
 
 
 if __name__ == '__main__':

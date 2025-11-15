@@ -12,7 +12,7 @@ import os
 import sys
 import torch
 
-from models import create_fcnn_model, create_vit_model
+from models import create_cnn_model, create_vit_model
 from utils import (
     evaluate_model,
     print_evaluation_results,
@@ -24,7 +24,7 @@ from utils import (
 def main():
     """Compare EfficientNet-B0 and MobileViT-v2 models."""
     # Hardcoded configuration
-    fcnn_weights = 'checkpoints/fcnn_best.pth'
+    cnn_weights = 'checkpoints/cnn_best.pth'
     vit_weights = 'checkpoints/vit_best.pth'
     test_dir = 'data/test'
     output_dir = 'results/'
@@ -55,31 +55,31 @@ def main():
     print("EVALUATING EfficientNet-B0")
     print("="*80)
     
-    fcnn_results = None
-    if os.path.exists(fcnn_weights):
-        print(f"Loading weights from {fcnn_weights}...")
-        fcnn_model = create_fcnn_model(num_classes=2, pretrained=False)
-        checkpoint = torch.load(fcnn_weights, map_location=device)
+    cnn_results = None
+    if os.path.exists(cnn_weights):
+        print(f"Loading weights from {cnn_weights}...")
+        cnn_model = create_cnn_model(num_classes=2, pretrained=False)
+        checkpoint = torch.load(cnn_weights, map_location=device)
         
         if 'model_state_dict' in checkpoint:
-            fcnn_model.load_state_dict(checkpoint['model_state_dict'])
+            cnn_model.load_state_dict(checkpoint['model_state_dict'])
         else:
-            fcnn_model.load_state_dict(checkpoint)
+            cnn_model.load_state_dict(checkpoint)
         
-        fcnn_model = fcnn_model.to(device)
-        fcnn_model.eval()
+        cnn_model = cnn_model.to(device)
+        cnn_model.eval()
         
         print("Evaluating EfficientNet-B0...")
-        fcnn_results = evaluate_model(fcnn_model, test_loader, device)
+        cnn_results = evaluate_model(cnn_model, test_loader, device)
         
         print("\nEfficientNet-B0 Results:")
-        print_evaluation_results(fcnn_results)
+        print_evaluation_results(cnn_results)
         
         # Generate plots
-        fcnn_dir = os.path.join(output_dir, 'fcnn')
-        plot_comprehensive_evaluation(fcnn_results, 'EfficientNet-B0', fcnn_dir)
+        cnn_dir = os.path.join(output_dir, 'cnn')
+        plot_comprehensive_evaluation(cnn_results, 'EfficientNet-B0', cnn_dir)
     else:
-        print(f"EfficientNet-B0 weights not found at {fcnn_weights}. Skipping...")
+        print(f"EfficientNet-B0 weights not found at {cnn_weights}. Skipping...")
     
     # Evaluate ViT (MobileViT-v2)
     print("\n" + "="*80)
@@ -113,14 +113,14 @@ def main():
         print(f"MobileViT-v2 weights not found at {vit_weights}. Skipping...")
     
     # Compare models
-    if fcnn_results and vit_results:
+    if cnn_results and vit_results:
         print("\n" + "="*80)
         print("COMPREHENSIVE MODEL COMPARISON")
         print("="*80)
         
         comparison_dir = os.path.join(output_dir, 'comparison')
         compare_models_comprehensive(
-            fcnn_results,
+            cnn_results,
             vit_results,
             'EfficientNet-B0',
             'MobileViT-v2',
@@ -136,12 +136,12 @@ def main():
             
             f.write("EfficientNet-B0:\n")
             f.write("-"*80 + "\n")
-            f.write(f"Accuracy:  {fcnn_results['accuracy']:.4f} ({fcnn_results['accuracy']*100:.2f}%)\n")
-            f.write(f"Precision: {fcnn_results['precision']:.4f} ({fcnn_results['precision']*100:.2f}%)\n")
-            f.write(f"Recall:    {fcnn_results['recall']:.4f} ({fcnn_results['recall']*100:.2f}%)\n")
-            f.write(f"F1-Score:  {fcnn_results['f1_score']:.4f} ({fcnn_results['f1_score']*100:.2f}%)\n")
-            f.write(f"TP: {fcnn_results['true_positive']}, TN: {fcnn_results['true_negative']}\n")
-            f.write(f"FP: {fcnn_results['false_positive']}, FN: {fcnn_results['false_negative']}\n\n")
+            f.write(f"Accuracy:  {cnn_results['accuracy']:.4f} ({cnn_results['accuracy']*100:.2f}%)\n")
+            f.write(f"Precision: {cnn_results['precision']:.4f} ({cnn_results['precision']*100:.2f}%)\n")
+            f.write(f"Recall:    {cnn_results['recall']:.4f} ({cnn_results['recall']*100:.2f}%)\n")
+            f.write(f"F1-Score:  {cnn_results['f1_score']:.4f} ({cnn_results['f1_score']*100:.2f}%)\n")
+            f.write(f"TP: {cnn_results['true_positive']}, TN: {cnn_results['true_negative']}\n")
+            f.write(f"FP: {cnn_results['false_positive']}, FN: {cnn_results['false_negative']}\n\n")
             
             f.write("MobileViT-v2:\n")
             f.write("-"*80 + "\n")
@@ -152,7 +152,7 @@ def main():
             f.write(f"TP: {vit_results['true_positive']}, TN: {vit_results['true_negative']}\n")
             f.write(f"FP: {vit_results['false_positive']}, FN: {vit_results['false_negative']}\n\n")
             
-            accuracy_diff = (vit_results['accuracy'] - fcnn_results['accuracy']) * 100
+            accuracy_diff = (vit_results['accuracy'] - cnn_results['accuracy']) * 100
             winner = 'MobileViT-v2' if accuracy_diff > 0 else 'EfficientNet-B0'
             f.write(f"Winner: {winner}\n")
             f.write(f"Accuracy difference: {accuracy_diff:+.2f}%\n")
@@ -164,11 +164,11 @@ def main():
     print("="*80)
     print(f"\nAll results and plots saved to: {output_dir}")
     print("\nGenerated files:")
-    if fcnn_results:
-        print(f"  - EfficientNet-B0 plots: {output_dir}fcnn/")
+    if cnn_results:
+        print(f"  - EfficientNet-B0 plots: {output_dir}cnn/")
     if vit_results:
         print(f"  - MobileViT-v2 plots: {output_dir}vit/")
-    if fcnn_results and vit_results:
+    if cnn_results and vit_results:
         print(f"  - Comparison plots: {output_dir}comparison/")
         print(f"  - Results summary: {output_dir}comparison_results.txt")
 
