@@ -54,6 +54,41 @@ This will:
 - DINOv3 model uses 256x256 input images with ImageNet normalization
 - Supports both feature extraction (frozen backbone) and fine-tuning modes
 
+### DINOv3 ViT-S/16 Model
+
+The project now uses **DINOv3 ViT-S/16** (`facebook/dinov2-small`) instead of MobileViT-v2:
+
+**Key Features:**
+- Self-supervised learning on large-scale diverse datasets (LVD-142M)
+- State-of-the-art transfer learning performance
+- ~22M parameters (ViT-S variant)
+- 256x256 input resolution
+- Better generalization across different domains
+
+**Training Modes:**
+
+1. **Fine-tuning Mode** (default - recommended):
+   ```python
+   from models import create_vit_model
+   model = create_vit_model(num_classes=2, freeze_backbone=False)
+   # Trains entire model end-to-end
+   ```
+
+2. **Feature Extraction Mode** (faster training):
+   ```python
+   from models import create_vit_model
+   model = create_vit_model(num_classes=2, freeze_backbone=True)
+   # Only trains classification head, backbone frozen
+   ```
+
+3. **Switch modes dynamically**:
+   ```python
+   model.freeze_backbone_layers()  # Switch to feature extraction
+   model.unfreeze_backbone()       # Switch to fine-tuning
+   ```
+
+**Note:** When internet is unavailable, the model automatically falls back to a ResNet18 architecture for compatibility.
+
 ### Evaluate Models
 
 Evaluate a single model (EfficientNet-B0 by default):
