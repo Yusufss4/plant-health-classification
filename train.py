@@ -110,7 +110,7 @@ def train_model(model_type='cnn'):
     # Create model
     print(f'\nCreating {model_type.upper()} model...')
     if model_type == 'cnn':
-        model = create_cnn_model(num_classes=2, dropout_rate=dropout)
+        model = create_cnn_model(num_classes=2, dropout=dropout)
     else:  # vit
         model = create_vit_model(num_classes=2, dropout=dropout)
     
