@@ -17,18 +17,17 @@ from PIL import Image
 import numpy as np
 
 
-def download_and_prepare_data(output_dir='data', healthy_only=True):
+def download_and_prepare_data(output_dir='data'):
     """
     Download PlantVillage dataset and prepare it for binary classification.
     
     Args:
         output_dir (str): Directory to save prepared data
-        healthy_only (bool): If True, only use healthy vs diseased tomato leaves
     
     The PlantVillage dataset contains 38 classes of plant diseases across 14 crop species.
-    For simplicity, we'll focus on tomato leaves with binary classification:
-    - healthy: Tomato_healthy
-    - diseased: All other tomato disease classes
+    Uses all plants with binary classification:
+    - healthy: All healthy plant classes
+    - diseased: All diseased plant classes
     """
     
     print("="*80)
@@ -63,21 +62,12 @@ def download_and_prepare_data(output_dir='data', healthy_only=True):
     # Get class names
     class_names = info.features['label'].names
     
-    # Filter for tomato classes or all classes
-    if healthy_only:
-        # Focus on tomato leaves for clearer healthy/diseased distinction
-        healthy_classes = [i for i, name in enumerate(class_names) if 'Tomato___healthy' in name]
-        diseased_classes = [i for i, name in enumerate(class_names) if 'Tomato___' in name and 'healthy' not in name]
-        print(f"\nFocusing on tomato leaves:")
-        print(f"  Healthy classes: {[class_names[i] for i in healthy_classes]}")
-        print(f"  Diseased classes: {len(diseased_classes)} disease types")
-    else:
-        # Use all plants - any class with 'healthy' is healthy, rest are diseased
-        healthy_classes = [i for i, name in enumerate(class_names) if 'healthy' in name.lower()]
-        diseased_classes = [i for i in range(len(class_names)) if i not in healthy_classes]
-        print(f"\nUsing all plant types:")
-        print(f"  Healthy classes: {len(healthy_classes)}")
-        print(f"  Diseased classes: {len(diseased_classes)}")
+    # Use all plants - any class with 'healthy' is healthy, rest are diseased
+    healthy_classes = [i for i, name in enumerate(class_names) if 'healthy' in name.lower()]
+    diseased_classes = [i for i in range(len(class_names)) if i not in healthy_classes]
+    print(f"\nUsing all plant types:")
+    print(f"  Healthy classes: {len(healthy_classes)}")
+    print(f"  Diseased classes: {len(diseased_classes)}")
     
     # Process and save images
     counters = {split: {'healthy': 0, 'diseased': 0} for split in splits}
@@ -88,10 +78,6 @@ def download_and_prepare_data(output_dir='data', healthy_only=True):
             print(f"  Processed {idx} images...")
         
         label_idx = int(label)
-        
-        # Filter classes if needed
-        if healthy_only and label_idx not in (healthy_classes + diseased_classes):
-            continue
         
         # Determine category (healthy or diseased)
         if label_idx in healthy_classes:
@@ -209,7 +195,7 @@ def main():
     
     try:
         # Download and prepare data
-        counters = download_and_prepare_data(output_dir=data_dir, healthy_only=True)
+        counters = download_and_prepare_data(output_dir=data_dir)
         
         # Verify structure
         verify_data_structure(data_dir)

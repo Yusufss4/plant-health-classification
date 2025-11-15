@@ -74,12 +74,12 @@ def train_model(model_type='cnn'):
     # Hardcoded configuration
     data_dir = 'data/'
     if model_type == 'cnn':
-        epochs = 50
+        epochs = 10
         batch_size = 32
         lr = 0.001
         dropout = 0.3
     elif model_type == 'vit':
-        epochs = 100
+        epochs = 25
         batch_size = 16
         lr = 0.0001
         dropout = 0.1
@@ -203,11 +203,11 @@ def main():
     print("="*80)
     train_model(model_type='cnn')
     
-    print("\n\n")
-    print("="*80)
-    print("Training MobileViT-v2 Model")
-    print("="*80)
-    train_model(model_type='vit')
+    # print("\n\n")
+    # print("="*80)
+    # print("Training MobileViT-v2 Model")
+    # print("="*80)
+    # train_model(model_type='vit')
 
 
 if __name__ == '__main__':

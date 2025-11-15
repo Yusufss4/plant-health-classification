@@ -212,5 +212,6 @@ checkpoints/
 results/
 *.pth
 *.png
-*.jpg
+*.jpg   
 *.jpeg
+.github/
