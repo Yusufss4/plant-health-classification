@@ -3,7 +3,7 @@ Models package for plant health classification.
 
 This package includes:
 - EfficientNet-B0: Modern efficient CNN (replaces traditional FCNN)
-- MobileViT-v2: Mobile Vision Transformer v2 (main model)
+- DINOv2 ViT-S/14: Self-supervised Vision Transformer (main model)
 
 EfficientNet-B0 is used instead of traditional FCNN for:
 - Preserves spatial structure (no flattening)
@@ -12,20 +12,22 @@ EfficientNet-B0 is used instead of traditional FCNN for:
 - State-of-the-art accuracy
 - Pretrained on ImageNet
 
-MobileViT-v2 is used for:
-- Hybrid CNN+Transformer design
-- Separable self-attention (linear complexity)
-- ~5M parameters, mobile/edge optimized
-- Pretrained on ImageNet-1k
+DINOv2 ViT-S/14 is used for:
+- Self-supervised learning on diverse data
+- High-quality visual features
+- ~21M parameters in backbone
+- Robust to domain shift
+- Supports frozen features and fine-tuning
+- Register tokens for enhanced features
 """
 
 from .efficientnet import EfficientNetB0, create_cnn_model
-from .vit import MobileViTv2, VisionTransformer, create_vit_model
+from .vit import DINOv2ViT, VisionTransformer, create_vit_model
 
 __all__ = [
     'EfficientNetB0',
     'create_cnn_model',
-    'MobileViTv2',
+    'DINOv2ViT',
     'VisionTransformer',  # Alias for backwards compatibility
     'create_vit_model'
 ]

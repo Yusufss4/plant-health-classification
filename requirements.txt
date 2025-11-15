@@ -1,6 +1,6 @@
 # Core deep learning framework
 # Note: EfficientNet-B0 requires torchvision >= 0.13.0
-# Note: MobileViT-v2 requires torchvision >= 0.16.0
+# Note: DINOv2 ViT-S/14 is loaded from PyTorch Hub (facebookresearch/dinov2)
 torch>=2.0.0
 torchvision>=0.16.0
 

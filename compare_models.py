@@ -2,7 +2,7 @@
 Comprehensive Model Comparison Script
 
 This script performs a complete evaluation and comparison of EfficientNet-B0
-and MobileViT-v2 models with all required metrics and visualizations.
+and DINOv2 ViT-S/14 models with all required metrics and visualizations.
 
 Usage:
     python compare_models.py
@@ -22,7 +22,7 @@ from utils import (
 
 
 def main():
-    """Compare EfficientNet-B0 and MobileViT-v2 models."""
+    """Compare EfficientNet-B0 and DINOv2 ViT-S/14 models."""
     # Hardcoded configuration
     cnn_weights = 'checkpoints/cnn_best.pth'
     vit_weights = 'checkpoints/vit_best.pth'
@@ -81,9 +81,9 @@ def main():
     else:
         print(f"EfficientNet-B0 weights not found at {cnn_weights}. Skipping...")
     
-    # Evaluate ViT (MobileViT-v2)
+    # Evaluate ViT (DINOv2)
     print("\n" + "="*80)
-    print("EVALUATING MobileViT-v2")
+    print("EVALUATING DINOv2 ViT-S/14")
     print("="*80)
     
     vit_results = None
@@ -100,17 +100,17 @@ def main():
         vit_model = vit_model.to(device)
         vit_model.eval()
         
-        print("Evaluating MobileViT-v2...")
+        print("Evaluating DINOv2 ViT-S/14...")
         vit_results = evaluate_model(vit_model, test_loader, device)
         
-        print("\nMobileViT-v2 Results:")
+        print("\nDINOv2 ViT-S/14 Results:")
         print_evaluation_results(vit_results)
         
         # Generate plots
         vit_dir = os.path.join(output_dir, 'vit')
-        plot_comprehensive_evaluation(vit_results, 'MobileViT-v2', vit_dir)
+        plot_comprehensive_evaluation(vit_results, 'DINOv2 ViT-S/14', vit_dir)
     else:
-        print(f"MobileViT-v2 weights not found at {vit_weights}. Skipping...")
+        print(f"DINOv2 ViT-S/14 weights not found at {vit_weights}. Skipping...")
     
     # Compare models
     if cnn_results and vit_results:
@@ -123,7 +123,7 @@ def main():
             cnn_results,
             vit_results,
             'EfficientNet-B0',
-            'MobileViT-v2',
+            'DINOv2 ViT-S/14',
             comparison_dir
         )
         
@@ -143,7 +143,7 @@ def main():
             f.write(f"TP: {cnn_results['true_positive']}, TN: {cnn_results['true_negative']}\n")
             f.write(f"FP: {cnn_results['false_positive']}, FN: {cnn_results['false_negative']}\n\n")
             
-            f.write("MobileViT-v2:\n")
+            f.write("DINOv2 ViT-S/14:\n")
             f.write("-"*80 + "\n")
             f.write(f"Accuracy:  {vit_results['accuracy']:.4f} ({vit_results['accuracy']*100:.2f}%)\n")
             f.write(f"Precision: {vit_results['precision']:.4f} ({vit_results['precision']*100:.2f}%)\n")
@@ -153,7 +153,7 @@ def main():
             f.write(f"FP: {vit_results['false_positive']}, FN: {vit_results['false_negative']}\n\n")
             
             accuracy_diff = (vit_results['accuracy'] - cnn_results['accuracy']) * 100
-            winner = 'MobileViT-v2' if accuracy_diff > 0 else 'EfficientNet-B0'
+            winner = 'DINOv2 ViT-S/14' if accuracy_diff > 0 else 'EfficientNet-B0'
             f.write(f"Winner: {winner}\n")
             f.write(f"Accuracy difference: {accuracy_diff:+.2f}%\n")
         
@@ -167,7 +167,7 @@ def main():
     if cnn_results:
         print(f"  - EfficientNet-B0 plots: {output_dir}cnn/")
     if vit_results:
-        print(f"  - MobileViT-v2 plots: {output_dir}vit/")
+        print(f"  - DINOv2 ViT-S/14 plots: {output_dir}vit/")
     if cnn_results and vit_results:
         print(f"  - Comparison plots: {output_dir}comparison/")
         print(f"  - Results summary: {output_dir}comparison_results.txt")

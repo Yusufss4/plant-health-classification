@@ -1,108 +1,121 @@
 """
-MobileViT-v2 for Plant Health Classification
+DINOv2 ViT-S/14 for Plant Health Classification
 
-This module implements MobileViT-v2 architecture for binary classification
+This module implements DINOv2 ViT-S/14 architecture for binary classification
 of plant leaves (healthy vs. diseased).
 
-MobileViT-v2 is a lightweight hybrid CNN-Transformer architecture that combines
-the strengths of CNNs (local feature extraction) with Transformers (global context).
+DINOv2 is a self-supervised Vision Transformer trained on a large and diverse dataset,
+providing high-quality visual features without labels. The ViT-S/14 variant uses a 
+small transformer (21M parameters) with 14x14 patch size.
 
-Key advantages over traditional ViT:
-1. Hybrid CNN+Transformer design for efficiency
-2. Separable self-attention reduces computational cost
-3. Optimized for mobile and edge devices
-4. Good accuracy with fewer parameters (~5M for mobilevitv2_100)
-5. Pretrained on ImageNet-1k for better transfer learning
-6. Linear complexity in the number of tokens vs. quadratic in standard ViT
+Key advantages:
+1. Self-supervised pretraining on diverse data (ImageNet-22k, web images)
+2. High-quality visual features for downstream tasks
+3. Robust to domain shift
+4. ViT-S/14 variant: 21M parameters, 14x14 patch size
+5. Register tokens enhance feature quality
+6. Excellent for transfer learning on specialized domains like agriculture
 
 Architecture highlights:
-- Uses depthwise separable convolutions from MobileNet
-- Employs separable self-attention instead of standard self-attention
-- Maintains local feature extraction through CNN layers
-- Adds global context through lightweight Transformer blocks
-- Efficient for deployment on resource-constrained devices
+- Pure Vision Transformer (no CNN components)
+- 12 transformer layers, 384 embedding dimension
+- Patch size 14x14 for fine-grained features
+- Self-supervised learning (DINO + iBOT)
+- Register tokens improve feature maps
+- Supports both frozen features and fine-tuning
 
-Based on: "Separable Self-attention for Mobile Vision Transformers"
-Paper: https://arxiv.org/abs/2206.02680
+Based on: "DINOv2: Learning Robust Visual Features without Supervision"
+Paper: https://arxiv.org/abs/2304.07193
 """
 
 import torch
 import torch.nn as nn
 
 
-class MobileViTv2(nn.Module):
+class DINOv2ViT(nn.Module):
     """
-    MobileViT-v2 model for image classification.
+    DINOv2 ViT-S/14 model for image classification.
     
-    This is a wrapper around torchvision's MobileViT-v2 implementation,
-    adapted for binary plant health classification.
+    This loads the pretrained DINOv2 backbone from PyTorch Hub and adds
+    a custom classification head for binary plant health classification.
     
     Args:
         num_classes (int): Number of output classes (default: 2 for binary)
-        pretrained (bool): Whether to load ImageNet pretrained weights
-        variant (str): Model variant ('050', '075', '100', '125', '150', '175', '200')
-        dropout (float): Dropout probability
+        pretrained (bool): Whether to load pretrained DINOv2 weights (always True for DINOv2)
+        use_registers (bool): Whether to use register-enhanced version (dinov2_vits14_reg)
+        freeze_backbone (bool): Whether to freeze backbone weights for feature extraction
+        dropout (float): Dropout probability for classification head
+        use_mlp_head (bool): Use MLP head instead of linear (2-layer with hidden dim)
+        gradient_checkpointing (bool): Enable gradient checkpointing for memory efficiency
     """
     
     def __init__(
         self,
         num_classes=2,
         pretrained=True,
-        variant='100',
-        dropout=0.1
+        use_registers=True,
+        freeze_backbone=False,
+        dropout=0.1,
+        use_mlp_head=False,
+        gradient_checkpointing=False
     ):
         super().__init__()
         
         self.num_classes = num_classes
-        self.variant = variant
+        self.use_registers = use_registers
+        self.freeze_backbone = freeze_backbone
+        self.gradient_checkpointing = gradient_checkpointing
         
-        # Import here to avoid dependency issues if torchvision version doesn't support it
+        # Load DINOv2 backbone from PyTorch Hub
+        model_name = 'dinov2_vits14_reg' if use_registers else 'dinov2_vits14'
+        
         try:
-            from torchvision.models import mobilevit_v2
-            from torchvision.models import MobileViT_V2_Weights
+            print(f"Loading {model_name} from PyTorch Hub...")
+            self.backbone = torch.hub.load('facebookresearch/dinov2', model_name, pretrained=pretrained)
             
-            # Create base model
-            if pretrained:
-                weights = MobileViT_V2_Weights.IMAGENET1K_V1
-                self.backbone = mobilevit_v2(weights=weights)
+            # Get embedding dimension from backbone
+            # DINOv2 ViT-S/14 has 384 dimensional embeddings
+            embed_dim = self.backbone.embed_dim
+            
+            # Freeze backbone if requested
+            if freeze_backbone:
+                print("Freezing backbone weights for feature extraction mode...")
+                for param in self.backbone.parameters():
+                    param.requires_grad = False
+            
+            # Enable gradient checkpointing if requested
+            if gradient_checkpointing and hasattr(self.backbone, 'set_grad_checkpointing'):
+                print("Enabling gradient checkpointing...")
+                self.backbone.set_grad_checkpointing(True)
+            
+            # Create classification head
+            if use_mlp_head:
+                # 2-layer MLP head: embed_dim -> hidden_dim -> num_classes
+                hidden_dim = embed_dim // 2
+                self.head = nn.Sequential(
+                    nn.Linear(embed_dim, hidden_dim),
+                    nn.GELU(),
+                    nn.Dropout(p=dropout),
+                    nn.Linear(hidden_dim, num_classes)
+                )
             else:
-                self.backbone = mobilevit_v2(weights=None)
+                # Simple linear head
+                self.head = nn.Sequential(
+                    nn.Dropout(p=dropout),
+                    nn.Linear(embed_dim, num_classes)
+                )
             
-            # Get the number of features from the classifier
-            num_features = self.backbone.classifier[-1].in_features
+            print(f"DINOv2 {model_name} loaded successfully!")
+            print(f"Embedding dimension: {embed_dim}")
+            print(f"Freeze backbone: {freeze_backbone}")
+            print(f"Use MLP head: {use_mlp_head}")
+            print(f"Gradient checkpointing: {gradient_checkpointing}")
             
-            # Replace classifier for binary classification
-            self.backbone.classifier = nn.Sequential(
-                nn.Dropout(p=dropout, inplace=True),
-                nn.Linear(num_features, num_classes)
+        except Exception as e:
+            raise RuntimeError(
+                f"Could not load DINOv2 model '{model_name}' from PyTorch Hub: {e}\n"
+                "Make sure you have internet connection for the first download."
             )
-            
-        except (ImportError, AttributeError) as e:
-            # Fallback: use manual implementation if torchvision doesn't have mobilevit_v2
-            print(f"Warning: Could not load MobileViT-v2 from torchvision: {e}")
-            print("Using simplified implementation...")
-            self.backbone = self._create_simplified_mobilevit(num_classes, dropout)
-    
-    def _create_simplified_mobilevit(self, num_classes, dropout):
-        """
-        Simplified MobileViT-v2 implementation for compatibility.
-        
-        This is a lightweight alternative if torchvision doesn't have mobilevit_v2.
-        Uses a hybrid CNN + lightweight attention approach.
-        """
-        from torchvision.models import mobilenet_v3_small
-        
-        # Use MobileNetV3 as backbone
-        backbone = mobilenet_v3_small(weights='IMAGENET1K_V1' if self.pretrained else None)
-        
-        # Replace classifier
-        num_features = backbone.classifier[-1].in_features
-        backbone.classifier = nn.Sequential(
-            nn.Dropout(p=dropout, inplace=True),
-            nn.Linear(num_features, num_classes)
-        )
-        
-        return backbone
     
     def forward(self, x):
         """
@@ -114,59 +127,84 @@ class MobileViTv2(nn.Module):
         Returns:
             Class logits [batch_size, num_classes]
         """
-        return self.backbone(x)
+        # Get features from DINOv2 backbone
+        # DINOv2 returns the CLS token embedding
+        with torch.set_grad_enabled(not self.freeze_backbone or self.training):
+            features = self.backbone(x)
+        
+        # Apply classification head
+        logits = self.head(features)
+        
+        return logits
     
     def get_num_parameters(self):
         """Return total number of trainable parameters."""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-class VisionTransformer(MobileViTv2):
+class VisionTransformer(DINOv2ViT):
     """
-    Alias for MobileViTv2 to maintain backward compatibility.
+    Alias for DINOv2ViT to maintain backward compatibility.
     
-    This allows existing code to work with the new MobileViT-v2 implementation
+    This allows existing code to work with the new DINOv2 implementation
     while using the VisionTransformer name.
     """
     pass
 
 
-def create_vit_model(num_classes=2, dropout=0.1, pretrained=True, variant='100'):
+def create_vit_model(
+    num_classes=2, 
+    dropout=0.1, 
+    pretrained=True, 
+    use_registers=True,
+    freeze_backbone=False,
+    use_mlp_head=False,
+    gradient_checkpointing=False
+):
     """
-    Factory function to create MobileViT-v2 model.
+    Factory function to create DINOv2 ViT-S/14 model.
     
     Args:
         num_classes (int): Number of output classes
-        dropout (float): Dropout probability
-        pretrained (bool): Whether to use ImageNet pretrained weights
-        variant (str): Model size variant ('050', '075', '100', '125', '150', '175', '200')
-                      Defaults to '100' which provides good balance of accuracy and efficiency
+        dropout (float): Dropout probability for classification head
+        pretrained (bool): Whether to use pretrained DINOv2 weights (always True for DINOv2)
+        use_registers (bool): Use register-enhanced version (dinov2_vits14_reg) for better features
+        freeze_backbone (bool): Freeze backbone for feature extraction mode
+        use_mlp_head (bool): Use 2-layer MLP head instead of linear classifier
+        gradient_checkpointing (bool): Enable gradient checkpointing for memory efficiency
     
     Returns:
-        MobileViTv2: Initialized MobileViT-v2 model
+        DINOv2ViT: Initialized DINOv2 ViT-S/14 model
     
-    Model Variants:
-        - mobilevitv2_050: ~1.4M parameters, smallest and fastest
-        - mobilevitv2_075: ~2.9M parameters
-        - mobilevitv2_100: ~5.0M parameters, recommended for most use cases
-        - mobilevitv2_125: ~7.5M parameters
-        - mobilevitv2_150: ~10.6M parameters
-        - mobilevitv2_175: ~14.3M parameters
-        - mobilevitv2_200: ~18.4M parameters, highest accuracy
+    Model Details:
+        - DINOv2 ViT-S/14: ~21M parameters (backbone only)
+        - Patch size: 14x14 for fine-grained features
+        - Embedding dimension: 384
+        - Self-supervised pretraining on diverse image data
+        - Register tokens enhance feature quality (use_registers=True)
     
-    Why MobileViT-v2 over standard ViT:
-        1. **Efficiency**: Significantly fewer parameters (~5M vs ~86M)
-        2. **Hybrid Design**: Combines CNN local features with Transformer global context
-        3. **Separable Attention**: Linear complexity O(n) instead of quadratic O(n²)
-        4. **Mobile-Friendly**: Optimized for deployment on edge devices
-        5. **Pretrained**: ImageNet-1k pretraining provides strong features
-        6. **Better for Small Datasets**: More suitable for agricultural datasets
+    Why DINOv2 over other Vision Transformers:
+        1. **Self-Supervised Learning**: Trained without labels, learns robust features
+        2. **Domain Robustness**: Better generalization to specialized domains like agriculture
+        3. **High-Quality Features**: State-of-the-art feature quality for downstream tasks
+        4. **Efficient Transfer Learning**: Excellent for fine-tuning on small datasets
+        5. **Register Tokens**: Enhanced feature maps for better classification
+        6. **Flexible Modes**: Supports both frozen features and fine-tuning
+    
+    Usage modes:
+        - Fine-tuning (freeze_backbone=False): Train entire model, best accuracy
+        - Feature extraction (freeze_backbone=True): Fast training, good for small datasets
+        - With registers (use_registers=True): Better feature quality (recommended)
+        - MLP head (use_mlp_head=True): More capacity in classification head
     """
-    model = MobileViTv2(
+    model = DINOv2ViT(
         num_classes=num_classes,
         pretrained=pretrained,
-        variant=variant,
-        dropout=dropout
+        use_registers=use_registers,
+        freeze_backbone=freeze_backbone,
+        dropout=dropout,
+        use_mlp_head=use_mlp_head,
+        gradient_checkpointing=gradient_checkpointing
     )
     return model
 
@@ -174,25 +212,26 @@ def create_vit_model(num_classes=2, dropout=0.1, pretrained=True, variant='100')
 if __name__ == "__main__":
     # Test the model
     print("=" * 80)
-    print("MobileViT-v2 Model for Plant Health Classification")
+    print("DINOv2 ViT-S/14 Model for Plant Health Classification")
     print("=" * 80)
     
-    model = create_vit_model(num_classes=2, pretrained=False)
+    # Test with pretrained=False to avoid downloading during testing
+    model = create_vit_model(num_classes=2, pretrained=False, use_registers=True)
     
     print("\n1. Model Architecture:")
     print("-" * 80)
-    print(f"Model Type: MobileViT-v2")
-    print(f"Variant: mobilevitv2_100")
+    print(f"Model Type: DINOv2 ViT-S/14 (with registers)")
     print(f"Purpose: Binary plant health classification (healthy vs. diseased)")
     
     print("\n2. Key Advantages:")
     print("-" * 80)
-    print("✓ Hybrid CNN+Transformer design for efficiency")
-    print("✓ Separable self-attention reduces computational cost")
-    print("✓ Optimized for mobile and edge devices")
-    print("✓ Good accuracy with fewer parameters (~5M)")
-    print("✓ Pretrained on ImageNet-1k for transfer learning")
-    print("✓ Linear complexity O(n) vs. quadratic O(n²) in standard ViT")
+    print("✓ Self-supervised learning on diverse image data")
+    print("✓ High-quality visual features without labels")
+    print("✓ Robust to domain shift (great for agriculture)")
+    print("✓ ~21M parameters in backbone")
+    print("✓ Patch size 14x14 for fine-grained features")
+    print("✓ Register tokens enhance feature quality")
+    print("✓ Supports both frozen features and fine-tuning")
     
     print("\n3. Model Statistics:")
     print("-" * 80)
@@ -200,14 +239,14 @@ if __name__ == "__main__":
     print(f"Total Parameters: {num_params:,}")
     print(f"Model Size: ~{num_params * 4 / (1024**2):.2f} MB (float32)")
     
-    print("\n4. Why MobileViT-v2 over Standard ViT:")
+    print("\n4. Why DINOv2 over MobileViT-v2:")
     print("-" * 80)
-    print("• Standard ViT: ~86M parameters, quadratic attention complexity")
-    print("• MobileViT-v2: ~5M parameters, linear attention complexity")
-    print("• Efficiency gain: ~17x fewer parameters")
-    print("• Better suited for mobile/edge deployment")
-    print("• More appropriate for smaller agricultural datasets")
-    print("• Combines CNN local feature extraction with Transformer global context")
+    print("• Self-supervised pretraining: Better feature quality")
+    print("• Domain robustness: Less overfitting to ImageNet biases")
+    print("• Transfer learning: Excellent for specialized domains")
+    print("• Pure ViT architecture: Better long-range dependencies")
+    print("• Register tokens: Enhanced spatial features")
+    print("• State-of-the-art: Latest research in self-supervised learning")
     
     print("\n5. Forward Pass Example:")
     print("-" * 80)
