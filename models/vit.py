@@ -158,14 +158,14 @@ class DINOv3ViT(nn.Module):
     
     def unfreeze_backbone(self):
         """Unfreeze backbone for fine-tuning."""
-        if not self._use_fallback:
+        if hasattr(self, '_use_fallback') and not self._use_fallback:
             for param in self.backbone.parameters():
                 param.requires_grad = True
             self.freeze_backbone = False
     
     def freeze_backbone_layers(self):
         """Freeze backbone for feature extraction mode."""
-        if not self._use_fallback:
+        if hasattr(self, '_use_fallback') and not self._use_fallback:
             for param in self.backbone.parameters():
                 param.requires_grad = False
             self.freeze_backbone = True
