@@ -42,14 +42,14 @@ data/
 
 ### Train Models
 
-Train both EfficientNet-B0 and MobileViT-v2 models:
+Train both EfficientNet-B0 and DINOv2 ViT-S/14 models:
 ```bash
 python train.py
 ```
 
 This will:
-- Train EfficientNet-B0 for 50 epochs with batch_size=32, lr=0.001
-- Train MobileViT-v2 for 100 epochs with batch_size=16, lr=0.0001
+- Train EfficientNet-B0 for 10 epochs with batch_size=32, lr=0.001
+- Train DINOv2 ViT-S/14 for 25 epochs with batch_size=16, lr=0.0001
 - Save best models to `checkpoints/cnn_best.pth` and `checkpoints/vit_best.pth`
 
 ### Evaluate Models

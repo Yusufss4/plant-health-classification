@@ -205,7 +205,7 @@ def main():
     
     # print("\n\n")
     # print("="*80)
-    # print("Training MobileViT-v2 Model")
+    # print("Training DINOv2 ViT-S/14 Model")
     # print("="*80)
     # train_model(model_type='vit')
 
