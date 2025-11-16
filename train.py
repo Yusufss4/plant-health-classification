@@ -2,9 +2,13 @@
 Training script for plant health classification models.
 
 Usage:
-    python train.py
+    python train.py [--model MODEL_TYPE]
+    
+Arguments:
+    --model: Model type to train ('cnn' or 'vit'). Default: trains both models
 """
 
+import argparse
 import os
 import torch
 import torch.nn as nn
@@ -197,17 +201,36 @@ def train_model(model_type='cnn'):
 
 
 def main():
-    """Train both models."""
-    print("="*80)
-    print("Training EfficientNet-B0 Model")
-    print("="*80)
-    train_model(model_type='cnn')
+    """Train model(s) based on command line argument."""
+    parser = argparse.ArgumentParser(description='Train plant health classification model')
+    parser.add_argument(
+        '--model',
+        type=str,
+        default='both',
+        choices=['cnn', 'vit', 'both'],
+        help='Model type to train (cnn, vit, or both). Default: both'
+    )
     
-    # print("\n\n")
-    # print("="*80)
-    # print("Training DINOv2 ViT-S/14 Model")
-    # print("="*80)
-    # train_model(model_type='vit')
+    args = parser.parse_args()
+    
+    model_names = {
+        'cnn': 'EfficientNet-B0',
+        'vit': 'DINOv2 Vision Transformer'
+    }
+    
+    if args.model == 'both' or args.model == 'cnn':
+        print("="*80)
+        print(f"Training {model_names['cnn']} Model")
+        print("="*80)
+        train_model(model_type='cnn')
+    
+    if args.model == 'both' or args.model == 'vit':
+        if args.model == 'both':
+            print("\n\n")
+        print("="*80)
+        print(f"Training {model_names['vit']} Model")
+        print("="*80)
+        train_model(model_type='vit')
 
 
 if __name__ == '__main__':

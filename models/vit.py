@@ -69,7 +69,11 @@ class DINOv3ViT(nn.Module):
         
         # Load DINOv3 backbone from timm library
         # DINOv3 models are available in timm >= 1.0.20
-        model_name = 'vit_small_patch14_reg4_dinov3.fb_in1k' if use_registers else 'vit_small_patch14_dinov3.fb_in1k'
+        if use_registers:
+        # "plus" is the slightly larger small model; you can pick base/large as well
+            model_name = "vit_small_plus_patch16_dinov3.lvd1689m"
+        else:
+            model_name = "vit_small_patch16_dinov3.lvd1689m"
         
         try:
             import timm
@@ -193,34 +197,13 @@ def create_vit_model(
         num_classes (int): Number of output classes
         dropout (float): Dropout probability for classification head
         pretrained (bool): Whether to use pretrained DINOv3 weights (always True for DINOv3)
-        use_registers (bool): Use register-enhanced version (vit_small_patch14_reg4_dinov3) for better features
+        use_registers (bool): Use register-enhanced version for better features
         freeze_backbone (bool): Freeze backbone for feature extraction mode
         use_mlp_head (bool): Use 2-layer MLP head instead of linear classifier
         gradient_checkpointing (bool): Enable gradient checkpointing for memory efficiency
     
     Returns:
         DINOv3ViT: Initialized DINOv3 ViT-S/14 model
-    
-    Model Details:
-        - DINOv3 ViT-S/14: ~21M parameters (backbone only)
-        - Patch size: 14x14 for fine-grained features
-        - Embedding dimension: 384
-        - Self-supervised pretraining on massive diverse image datasets
-        - Register tokens enhance feature quality (use_registers=True)
-    
-    Why DINOv3 over DINOv2 and other Vision Transformers:
-        1. **Enhanced Self-Supervised Learning**: Improved training on larger, more diverse datasets
-        2. **Superior Feature Quality**: Better downstream task performance across benchmarks
-        3. **Even Better Domain Robustness**: Enhanced generalization to specialized domains
-        4. **Improved Register Tokens**: Better spatial feature representation
-        5. **State-of-the-Art**: Latest advances in self-supervised vision learning
-        6. **Flexible Modes**: Supports both frozen features and fine-tuning
-    
-    Usage modes:
-        - Fine-tuning (freeze_backbone=False): Train entire model, best accuracy
-        - Feature extraction (freeze_backbone=True): Fast training, good for small datasets
-        - With registers (use_registers=True): Better feature quality (recommended)
-        - MLP head (use_mlp_head=True): More capacity in classification head
     """
     model = DINOv3ViT(
         num_classes=num_classes,
@@ -243,36 +226,13 @@ if __name__ == "__main__":
     # Test with pretrained=False to avoid downloading during testing
     model = create_vit_model(num_classes=2, pretrained=False, use_registers=True)
     
-    print("\n1. Model Architecture:")
-    print("-" * 80)
-    print(f"Model Type: DINOv3 ViT-S/14 (with registers)")
-    print(f"Purpose: Binary plant health classification (healthy vs. diseased)")
-    
-    print("\n2. Key Advantages:")
-    print("-" * 80)
-    print("✓ Enhanced self-supervised learning on massive diverse datasets")
-    print("✓ Superior visual features for downstream tasks")
-    print("✓ Even better robustness to domain shift (excellent for agriculture)")
-    print("✓ ~21M parameters in backbone")
-    print("✓ Patch size 14x14 for fine-grained features")
-    print("✓ Improved register tokens enhance feature quality")
-    print("✓ Supports both frozen features and fine-tuning")
-    
-    print("\n3. Model Statistics:")
+    print("\nModel Statistics:")
     print("-" * 80)
     num_params = model.get_num_parameters()
     print(f"Total Parameters: {num_params:,}")
     print(f"Model Size: ~{num_params * 4 / (1024**2):.2f} MB (float32)")
     
-    print("\n4. Why DINOv3 over DINOv2:")
-    print("-" * 80)
-    print("• Improved self-supervised pretraining: Better feature quality")
-    print("• Larger and more diverse training data: Enhanced generalization")
-    print("• Superior downstream performance: Better results across benchmarks")
-    print("• Enhanced register tokens: Improved spatial features")
-    print("• State-of-the-art: Latest advances in self-supervised vision")
-    
-    print("\n5. Forward Pass Example:")
+    print("\nForward Pass Example:")
     print("-" * 80)
     
     # Create dummy input batch
@@ -286,7 +246,6 @@ if __name__ == "__main__":
         output = model(dummy_input)
     
     print(f"Output shape: {output.shape}")
-    print(f"Output logits:\n{output}")
     
     # Get probabilities
     probabilities = torch.softmax(output, dim=1)
