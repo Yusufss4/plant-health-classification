@@ -186,7 +186,7 @@ def plot_confusion_matrix(cm, class_names=['healthy', 'diseased'], save_path=Non
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"Confusion matrix saved to {save_path}")
     
-    plt.show()
+    plt.close()  # Close the figure to free memory
 
 
 def plot_training_history(history, save_path=None):
@@ -225,7 +225,7 @@ def plot_training_history(history, save_path=None):
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"Training history saved to {save_path}")
     
-    plt.show()
+    plt.close()  # Close the figure to free memory
 
 
 def compare_models(results1, results2, model1_name='Model 1', model2_name='Model 2'):
@@ -417,7 +417,7 @@ def plot_metrics_vs_threshold(results, save_path=None):
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"Metrics vs threshold plot saved to {save_path}")
     
-    plt.show()
+    plt.close()  # Close the figure to free memory
     
     return optimal_threshold, optimal_f1
 
@@ -465,7 +465,7 @@ def plot_precision_recall_curve(results, save_path=None):
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"PR curve saved to {save_path}")
     
-    plt.show()
+    plt.close()  # Close the figure to free memory
     
     return avg_precision
 
@@ -489,23 +489,26 @@ def plot_comprehensive_evaluation(results, model_name='Model', save_dir=None):
     
     plot_paths = {}
     
+    # Sanitize model name for use in filenames (replace forward slashes)
+    safe_model_name = model_name.replace('/', '-').replace('\\', '-')
+    
     # 1. Confusion Matrix
     print(f"\n1. Plotting Confusion Matrix for {model_name}...")
-    cm_path = os.path.join(save_dir, f'{model_name}_confusion_matrix.png') if save_dir else None
+    cm_path = os.path.join(save_dir, f'{safe_model_name}_confusion_matrix.png') if save_dir else None
     plot_confusion_matrix(results['confusion_matrix'], save_path=cm_path)
     if cm_path:
         plot_paths['confusion_matrix'] = cm_path
     
     # 2. Metrics vs Threshold
     print(f"\n2. Plotting Metrics vs Threshold for {model_name}...")
-    threshold_path = os.path.join(save_dir, f'{model_name}_metrics_vs_threshold.png') if save_dir else None
+    threshold_path = os.path.join(save_dir, f'{safe_model_name}_metrics_vs_threshold.png') if save_dir else None
     optimal_threshold, optimal_f1 = plot_metrics_vs_threshold(results, save_path=threshold_path)
     if threshold_path:
         plot_paths['metrics_vs_threshold'] = threshold_path
     
     # 3. Precision-Recall Curve
     print(f"\n3. Plotting Precision-Recall Curve for {model_name}...")
-    pr_path = os.path.join(save_dir, f'{model_name}_pr_curve.png') if save_dir else None
+    pr_path = os.path.join(save_dir, f'{safe_model_name}_pr_curve.png') if save_dir else None
     avg_precision = plot_precision_recall_curve(results, save_path=pr_path)
     if pr_path:
         plot_paths['pr_curve'] = pr_path
@@ -605,7 +608,7 @@ def compare_models_comprehensive(results1, results2, model1_name='EfficientNet-B
         comparison_path = os.path.join(save_dir, 'model_comparison_confusion_matrices.png')
         plt.savefig(comparison_path, dpi=300, bbox_inches='tight')
         print(f"\nComparison plot saved to {comparison_path}")
-        plt.show()
+        plt.close()  # Close the figure to free memory
     
     print("\n" + "="*80)
 

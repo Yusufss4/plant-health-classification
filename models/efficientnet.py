@@ -101,16 +101,6 @@ def create_cnn_model(num_classes=2, dropout=0.2, pretrained=True):
     
     Returns:
         EfficientNetB0: Initialized EfficientNet-B0 model
-    
-    Why EfficientNet-B0 over traditional FCNN:
-        1. **Spatial Structure**: Preserves 2D image structure (no flattening)
-        2. **Parameter Efficient**: ~5.3M parameters with high accuracy
-        3. **Compound Scaling**: Balanced scaling of depth, width, and resolution
-        4. **Mobile Inverted Bottlenecks**: Efficient convolutions
-        5. **SE Blocks**: Channel-wise attention improves feature learning
-        6. **Pretrained**: ImageNet weights provide strong visual features
-        7. **State-of-the-art**: Better accuracy than traditional CNNs
-        8. **Mobile-Friendly**: Optimized for inference on resource-constrained devices
     """
     model = EfficientNetB0(
         num_classes=num_classes,
@@ -128,37 +118,13 @@ if __name__ == "__main__":
     
     model = create_cnn_model(num_classes=2, pretrained=False)
     
-    print("\n1. Model Architecture:")
-    print("-" * 80)
-    print(f"Model Type: EfficientNet-B0")
-    print(f"Purpose: Binary plant health classification (healthy vs. diseased)")
-    
-    print("\n2. Key Advantages:")
-    print("-" * 80)
-    print("✓ Preserves spatial structure (no flattening)")
-    print("✓ Efficient compound scaling (depth, width, resolution)")
-    print("✓ Mobile inverted bottleneck convolutions (MBConv)")
-    print("✓ Squeeze-and-Excitation blocks for attention")
-    print("✓ Only ~5.3M parameters with state-of-the-art accuracy")
-    print("✓ Pretrained on ImageNet for transfer learning")
-    print("✓ Better accuracy-efficiency trade-off than traditional FCNN")
-    
-    print("\n3. Model Statistics:")
+    print("\nModel Statistics:")
     print("-" * 80)
     num_params = model.get_num_parameters()
     print(f"Total Parameters: {num_params:,}")
     print(f"Model Size: ~{num_params * 4 / (1024**2):.2f} MB (float32)")
     
-    print("\n4. Why EfficientNet-B0 over Traditional FCNN:")
-    print("-" * 80)
-    print("• Traditional FCNN: Flattens images, loses spatial structure, 307M parameters")
-    print("• EfficientNet-B0: Preserves structure, efficient design, 5.3M parameters")
-    print("• Efficiency gain: ~58x fewer parameters")
-    print("• Better accuracy with modern architecture")
-    print("• Suitable for mobile deployment")
-    print("• Leverages ImageNet pretraining")
-    
-    print("\n5. Forward Pass Example:")
+    print("\nForward Pass Example:")
     print("-" * 80)
     
     # Create dummy input batch
@@ -172,7 +138,6 @@ if __name__ == "__main__":
         output = model(dummy_input)
     
     print(f"Output shape: {output.shape}")
-    print(f"Output logits:\n{output}")
     
     # Get probabilities
     probabilities = torch.softmax(output, dim=1)

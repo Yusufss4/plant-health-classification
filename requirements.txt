@@ -1,8 +1,9 @@
 # Core deep learning framework
 # Note: EfficientNet-B0 requires torchvision >= 0.13.0
-# Note: DINOv2 ViT-S/14 is loaded from PyTorch Hub (facebookresearch/dinov2)
+# Note: DINOv3 ViT-S/14 is loaded from timm library (PyTorch Image Models)
 torch>=2.0.0
 torchvision>=0.16.0
+timm>=1.0.20
 
 # Data manipulation and numerical computations
 numpy>=1.24.0

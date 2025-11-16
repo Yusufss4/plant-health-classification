@@ -18,7 +18,7 @@ python prepare_data.py
 
 This will automatically:
 - Download the PlantVillage dataset from TensorFlow Datasets
-- Extract tomato leaf images (healthy vs diseased)
+- Extract all plant leaf images (healthy vs diseased) from 14 crop species
 - Split into train (70%), validation (15%), and test (15%) sets
 - Organize into the required directory structure
 
@@ -42,24 +42,40 @@ data/
 
 ### Train Models
 
-Train both EfficientNet-B0 and DINOv2 ViT-S/14 models:
+Train models with command line arguments:
+
 ```bash
+# Train both models (default)
 python train.py
+python train.py --model both
+
+# Train only EfficientNet-B0
+python train.py --model cnn
+
+# Train only DINOv3 ViT
+python train.py --model vit
 ```
 
 This will:
 - Train EfficientNet-B0 for 10 epochs with batch_size=32, lr=0.001
-- Train DINOv2 ViT-S/14 for 25 epochs with batch_size=16, lr=0.0001
+- Train DINOv3 ViT-S/14 for 25 epochs with batch_size=16, lr=0.0001
 - Save best models to `checkpoints/cnn_best.pth` and `checkpoints/vit_best.pth`
 
 ### Evaluate Models
 
-Evaluate a single model (EfficientNet-B0 by default):
+Evaluate a specific model:
+
 ```bash
+# Evaluate EfficientNet-B0 (default)
 python evaluate.py
+python evaluate.py --model cnn
+
+# Evaluate DINOv3 ViT
+python evaluate.py --model vit
 ```
 
-This will evaluate the EfficientNet-B0 model on the test set and display metrics with confusion matrix.
+This will evaluate the specified model on the test set and display metrics with confusion matrix.
+Results are saved to `results/` directory.
 
 ### Compare Models
 

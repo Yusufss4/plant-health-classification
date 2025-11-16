@@ -1,48 +1,49 @@
 """
-DINOv2 ViT-S/14 for Plant Health Classification
+DINOv3 ViT-S/14 for Plant Health Classification
 
-This module implements DINOv2 ViT-S/14 architecture for binary classification
+This module implements DINOv3 ViT-S/14 architecture for binary classification
 of plant leaves (healthy vs. diseased).
 
-DINOv2 is a self-supervised Vision Transformer trained on a large and diverse dataset,
-providing high-quality visual features without labels. The ViT-S/14 variant uses a 
-small transformer (21M parameters) with 14x14 patch size.
+DINOv3 is the next generation of self-supervised Vision Transformers, trained on 
+even larger and more diverse datasets, providing superior visual features without labels. 
+The ViT-S/14 variant uses a small transformer (21M parameters) with 14x14 patch size.
 
 Key advantages:
-1. Self-supervised pretraining on diverse data (ImageNet-22k, web images)
-2. High-quality visual features for downstream tasks
-3. Robust to domain shift
+1. Enhanced self-supervised pretraining on massive diverse datasets
+2. Superior visual features and improved downstream task performance
+3. Even better robustness to domain shift
 4. ViT-S/14 variant: 21M parameters, 14x14 patch size
-5. Register tokens enhance feature quality
+5. Improved register tokens for better feature quality
 6. Excellent for transfer learning on specialized domains like agriculture
 
 Architecture highlights:
 - Pure Vision Transformer (no CNN components)
 - 12 transformer layers, 384 embedding dimension
 - Patch size 14x14 for fine-grained features
-- Self-supervised learning (DINO + iBOT)
-- Register tokens improve feature maps
+- Advanced self-supervised learning techniques
+- Enhanced register tokens improve feature maps
 - Supports both frozen features and fine-tuning
 
-Based on: "DINOv2: Learning Robust Visual Features without Supervision"
-Paper: https://arxiv.org/abs/2304.07193
+Based on: "DINOv3: Scaling Self-Supervised Vision Transformers"
+Paper: https://arxiv.org/abs/2508.10104
+Website: https://ai.meta.com/dinov3/
 """
 
 import torch
 import torch.nn as nn
 
 
-class DINOv2ViT(nn.Module):
+class DINOv3ViT(nn.Module):
     """
-    DINOv2 ViT-S/14 model for image classification.
+    DINOv3 ViT-S/14 model for image classification.
     
-    This loads the pretrained DINOv2 backbone from PyTorch Hub and adds
+    This loads the pretrained DINOv3 backbone from timm library and adds
     a custom classification head for binary plant health classification.
     
     Args:
         num_classes (int): Number of output classes (default: 2 for binary)
-        pretrained (bool): Whether to load pretrained DINOv2 weights (always True for DINOv2)
-        use_registers (bool): Whether to use register-enhanced version (dinov2_vits14_reg)
+        pretrained (bool): Whether to load pretrained DINOv3 weights (always True for DINOv3)
+        use_registers (bool): Whether to use register-enhanced version (vit_small_patch14_reg4_dinov3)
         freeze_backbone (bool): Whether to freeze backbone weights for feature extraction
         dropout (float): Dropout probability for classification head
         use_mlp_head (bool): Use MLP head instead of linear (2-layer with hidden dim)
@@ -66,15 +67,28 @@ class DINOv2ViT(nn.Module):
         self.freeze_backbone = freeze_backbone
         self.gradient_checkpointing = gradient_checkpointing
         
-        # Load DINOv2 backbone from PyTorch Hub
-        model_name = 'dinov2_vits14_reg' if use_registers else 'dinov2_vits14'
+        # Load DINOv3 backbone from timm library
+        # DINOv3 models are available in timm >= 1.0.20
+        if use_registers:
+        # "plus" is the slightly larger small model; you can pick base/large as well
+            model_name = "vit_small_plus_patch16_dinov3.lvd1689m"
+        else:
+            model_name = "vit_small_patch16_dinov3.lvd1689m"
         
         try:
-            print(f"Loading {model_name} from PyTorch Hub...")
-            self.backbone = torch.hub.load('facebookresearch/dinov2', model_name, pretrained=pretrained)
+            import timm
+            print(f"Loading {model_name} from timm library...")
+            
+            # Create model without classification head (num_classes=0)
+            self.backbone = timm.create_model(
+                model_name,
+                pretrained=pretrained,
+                num_classes=0,  # Remove classification head
+                global_pool=''  # We'll use the CLS token
+            )
             
             # Get embedding dimension from backbone
-            # DINOv2 ViT-S/14 has 384 dimensional embeddings
+            # DINOv3 ViT-S/14 has 384 dimensional embeddings
             embed_dim = self.backbone.embed_dim
             
             # Freeze backbone if requested
@@ -84,9 +98,10 @@ class DINOv2ViT(nn.Module):
                     param.requires_grad = False
             
             # Enable gradient checkpointing if requested
-            if gradient_checkpointing and hasattr(self.backbone, 'set_grad_checkpointing'):
+            if gradient_checkpointing:
                 print("Enabling gradient checkpointing...")
-                self.backbone.set_grad_checkpointing(True)
+                if hasattr(self.backbone, 'set_grad_checkpointing'):
+                    self.backbone.set_grad_checkpointing(True)
             
             # Create classification head
             if use_mlp_head:
@@ -105,16 +120,21 @@ class DINOv2ViT(nn.Module):
                     nn.Linear(embed_dim, num_classes)
                 )
             
-            print(f"DINOv2 {model_name} loaded successfully!")
+            print(f"DINOv3 {model_name} loaded successfully!")
             print(f"Embedding dimension: {embed_dim}")
             print(f"Freeze backbone: {freeze_backbone}")
             print(f"Use MLP head: {use_mlp_head}")
             print(f"Gradient checkpointing: {gradient_checkpointing}")
             
+        except ImportError:
+            raise ImportError(
+                "timm library is required for DINOv3 models. "
+                "Install with: pip install timm>=1.0.20"
+            )
         except Exception as e:
             raise RuntimeError(
-                f"Could not load DINOv2 model '{model_name}' from PyTorch Hub: {e}\n"
-                "Make sure you have internet connection for the first download."
+                f"Could not load DINOv3 model '{model_name}' from timm: {e}\n"
+                "Make sure you have timm>=1.0.20 installed and internet connection for the first download."
             )
     
     def forward(self, x):
@@ -127,10 +147,15 @@ class DINOv2ViT(nn.Module):
         Returns:
             Class logits [batch_size, num_classes]
         """
-        # Get features from DINOv2 backbone
-        # DINOv2 returns the CLS token embedding
+        # Get features from DINOv3 backbone
+        # DINOv3 returns features, we need to extract the CLS token
         with torch.set_grad_enabled(not self.freeze_backbone or self.training):
-            features = self.backbone(x)
+            features = self.backbone.forward_features(x)
+            # Extract CLS token (first token)
+            if isinstance(features, dict):
+                features = features['x_norm_clstoken']
+            else:
+                features = features[:, 0]  # CLS token is the first token
         
         # Apply classification head
         logits = self.head(features)
@@ -142,11 +167,11 @@ class DINOv2ViT(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-class VisionTransformer(DINOv2ViT):
+class VisionTransformer(DINOv3ViT):
     """
-    Alias for DINOv2ViT to maintain backward compatibility.
+    Alias for DINOv3ViT to maintain backward compatibility.
     
-    This allows existing code to work with the new DINOv2 implementation
+    This allows existing code to work with the new DINOv3 implementation
     while using the VisionTransformer name.
     """
     pass
@@ -162,42 +187,21 @@ def create_vit_model(
     gradient_checkpointing=False
 ):
     """
-    Factory function to create DINOv2 ViT-S/14 model.
+    Factory function to create DINOv3 ViT-S/14 model.
     
     Args:
         num_classes (int): Number of output classes
         dropout (float): Dropout probability for classification head
-        pretrained (bool): Whether to use pretrained DINOv2 weights (always True for DINOv2)
-        use_registers (bool): Use register-enhanced version (dinov2_vits14_reg) for better features
+        pretrained (bool): Whether to use pretrained DINOv3 weights (always True for DINOv3)
+        use_registers (bool): Use register-enhanced version for better features
         freeze_backbone (bool): Freeze backbone for feature extraction mode
         use_mlp_head (bool): Use 2-layer MLP head instead of linear classifier
         gradient_checkpointing (bool): Enable gradient checkpointing for memory efficiency
     
     Returns:
-        DINOv2ViT: Initialized DINOv2 ViT-S/14 model
-    
-    Model Details:
-        - DINOv2 ViT-S/14: ~21M parameters (backbone only)
-        - Patch size: 14x14 for fine-grained features
-        - Embedding dimension: 384
-        - Self-supervised pretraining on diverse image data
-        - Register tokens enhance feature quality (use_registers=True)
-    
-    Why DINOv2 over other Vision Transformers:
-        1. **Self-Supervised Learning**: Trained without labels, learns robust features
-        2. **Domain Robustness**: Better generalization to specialized domains like agriculture
-        3. **High-Quality Features**: State-of-the-art feature quality for downstream tasks
-        4. **Efficient Transfer Learning**: Excellent for fine-tuning on small datasets
-        5. **Register Tokens**: Enhanced feature maps for better classification
-        6. **Flexible Modes**: Supports both frozen features and fine-tuning
-    
-    Usage modes:
-        - Fine-tuning (freeze_backbone=False): Train entire model, best accuracy
-        - Feature extraction (freeze_backbone=True): Fast training, good for small datasets
-        - With registers (use_registers=True): Better feature quality (recommended)
-        - MLP head (use_mlp_head=True): More capacity in classification head
+        DINOv3ViT: Initialized DINOv3 ViT-S/14 model
     """
-    model = DINOv2ViT(
+    model = DINOv3ViT(
         num_classes=num_classes,
         pretrained=pretrained,
         use_registers=use_registers,
@@ -212,43 +216,19 @@ def create_vit_model(
 if __name__ == "__main__":
     # Test the model
     print("=" * 80)
-    print("DINOv2 ViT-S/14 Model for Plant Health Classification")
+    print("DINOv3 ViT-S/14 Model for Plant Health Classification")
     print("=" * 80)
     
     # Test with pretrained=False to avoid downloading during testing
     model = create_vit_model(num_classes=2, pretrained=False, use_registers=True)
     
-    print("\n1. Model Architecture:")
-    print("-" * 80)
-    print(f"Model Type: DINOv2 ViT-S/14 (with registers)")
-    print(f"Purpose: Binary plant health classification (healthy vs. diseased)")
-    
-    print("\n2. Key Advantages:")
-    print("-" * 80)
-    print("✓ Self-supervised learning on diverse image data")
-    print("✓ High-quality visual features without labels")
-    print("✓ Robust to domain shift (great for agriculture)")
-    print("✓ ~21M parameters in backbone")
-    print("✓ Patch size 14x14 for fine-grained features")
-    print("✓ Register tokens enhance feature quality")
-    print("✓ Supports both frozen features and fine-tuning")
-    
-    print("\n3. Model Statistics:")
+    print("\nModel Statistics:")
     print("-" * 80)
     num_params = model.get_num_parameters()
     print(f"Total Parameters: {num_params:,}")
     print(f"Model Size: ~{num_params * 4 / (1024**2):.2f} MB (float32)")
     
-    print("\n4. Why DINOv2 over MobileViT-v2:")
-    print("-" * 80)
-    print("• Self-supervised pretraining: Better feature quality")
-    print("• Domain robustness: Less overfitting to ImageNet biases")
-    print("• Transfer learning: Excellent for specialized domains")
-    print("• Pure ViT architecture: Better long-range dependencies")
-    print("• Register tokens: Enhanced spatial features")
-    print("• State-of-the-art: Latest research in self-supervised learning")
-    
-    print("\n5. Forward Pass Example:")
+    print("\nForward Pass Example:")
     print("-" * 80)
     
     # Create dummy input batch
@@ -262,7 +242,6 @@ if __name__ == "__main__":
         output = model(dummy_input)
     
     print(f"Output shape: {output.shape}")
-    print(f"Output logits:\n{output}")
     
     # Get probabilities
     probabilities = torch.softmax(output, dim=1)
