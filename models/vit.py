@@ -177,10 +177,6 @@ class VisionTransformer(DINOv3ViT):
     pass
 
 
-# Keep DINOv2ViT as an alias for backward compatibility
-DINOv2ViT = DINOv3ViT
-
-
 def create_vit_model(
     num_classes=2, 
     dropout=0.1, 

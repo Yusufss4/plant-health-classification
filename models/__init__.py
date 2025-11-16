@@ -22,13 +22,12 @@ DINOv3 ViT-S/14 is used for:
 """
 
 from .efficientnet import EfficientNetB0, create_cnn_model
-from .vit import DINOv3ViT, DINOv2ViT, VisionTransformer, create_vit_model
+from .vit import DINOv3ViT, VisionTransformer, create_vit_model
 
 __all__ = [
     'EfficientNetB0',
     'create_cnn_model',
     'DINOv3ViT',
-    'DINOv2ViT',  # Alias for backward compatibility
     'VisionTransformer',  # Alias for backwards compatibility
     'create_vit_model'
 ]

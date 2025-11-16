@@ -131,7 +131,7 @@ def main():
     
     model_names = {
         'cnn': 'EfficientNet-B0',
-        'vit': 'DINOv2 Vision Transformer'
+        'vit': 'DINOv3 Vision Transformer'
     }
     
     print("="*80)
