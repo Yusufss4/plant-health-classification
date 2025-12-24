@@ -77,15 +77,4 @@ python evaluate.py --model vit
 This will evaluate the specified model on the test set and display metrics with confusion matrix.
 Results are saved to `results/` directory.
 
-### Compare Models
-
-Compare both models with comprehensive metrics and plots:
-```bash
-python compare_models.py
-```
-
-This generates:
-- Confusion matrices for both models
-- Accuracy, precision, recall, F1-score metrics
-- Comprehensive evaluation plots in `results/` directory
 - Side-by-side model comparison
