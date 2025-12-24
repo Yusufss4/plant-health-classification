@@ -1,17 +1,15 @@
-# Plant Health Classification: Evaluation Results
+# Plant Health Classification: Evaluation Results (Updated)
 
-## Executive Summary
+## Summary
 
-Both models exhibit exceptional performance on the test set (8,170 samples), achieving accuracies above 99%. However, the **EfficientNet-B0 (CNN)** outperformed the ViT across all key metrics while maintaining a significantly smaller parameter footprint.
-
-| Metric | DINOv3 ViT | EfficientNet-B0 | Winner |
+| Metric | DINOv3 ViT | EfficientNet-B0 (Optimized) | Winner |
 | --- | --- | --- | --- |
-| **Accuracy** | 99.20% | **99.66%** | CNN |
-| **Precision** | 99.54% | **99.88%** | CNN |
-| **Recall** | 99.35% | **99.64%** | CNN |
-| **F1-Score** | 99.44% | **99.76%** | CNN |
-| **False Negatives** | 38 | **21** | CNN |
-| **Parameters** | ~28.68M | **~4.01M** | CNN |
+| **Accuracy** | 99.20% | **99.87%** | **CNN** |
+| **Precision** | 99.54% | **99.90%** | **CNN** |
+| **Recall** | 99.35% | **99.91%** | **CNN** |
+| **F1-Score** | 99.44% | **99.91%** | **CNN** |
+| **False Negatives** | 38 | **5** | **CNN** |
+| **Parameters** | ~28.68M | **~4.01M** | **CNN** |
 
 ---
 
@@ -19,7 +17,7 @@ Both models exhibit exceptional performance on the test set (8,170 samples), ach
 
 **Architecture:** `vit_small_plus_patch16_dinov3.lvd1689m`
 
-The ViT model leverages the DINOv3 self-supervised pre-training. It reached its best validation state at Epoch 14.
+The ViT model leverages DINOv3 self-supervised pre-training. While highly accurate, it struggles slightly more than the CNN with fine-grained feature extraction in this specific dataset.
 
 ### Performance Breakdown
 
@@ -40,25 +38,28 @@ The ViT model leverages the DINOv3 self-supervised pre-training. It reached its 
 
 **Architecture:** EfficientNet-B0
 
-The CNN model achieved superior convergence faster (Epoch 8) and demonstrated higher precision and recall, effectively minimizing the "Critical" false negatives where a diseased plant is missed.
-
 ### Performance Breakdown
 
-* **Precision:** 0.9988
-* **Recall:** 0.9964
-* **F1-Score:** 0.9976
+* **Precision:** 0.9990
+* **Recall:** 0.9991
+* **F1-Score:** 0.9991
 
 ### Confusion Matrix
 
 |  | Predicted: Healthy | Predicted: Diseased |
 | --- | --- | --- |
-| **Actual: Healthy** | 2326 (TN) | 7 (FP) |
-| **Actual: Diseased** | 21 (FN) | 5816 (TP) |
+| **Actual: Healthy** | 2327 (TN) | 6 (FP) |
+| **Actual: Diseased** | 5 (FN) | 5832 (TP) |
 
 ---
 
 ## Key Observations
 
-1. **Efficiency:** The EfficientNet-B0 model is roughly **7x smaller** in terms of parameters (4M vs 28.6M) while delivering higher accuracy. This makes it the ideal candidate for deployment on edge devices or mobile platforms.
-2. **Reliability:** In a plant pathology context, **False Negatives (FN)** are the most costly error (missing a disease). The CNN reduced these errors by **~45%** compared to the ViT (21 vs 38).
-3. **Class Imbalance:** Both models handled the higher support for the "Diseased" class (5,837 samples) vs "Healthy" (2,333 samples) well, though the CNN showed better robustness in its "Healthy" class recall.
+- **EfficientNet-B0 (CNN) outperforms DINOv3 ViT** on all major metrics (accuracy, precision, recall, F1-score) for this plant health classification task.
+- **CNN model has significantly fewer parameters** (~4.01M) compared to the ViT (~28.68M), making it more efficient and lightweight for deployment.
+- **False negatives are much lower** for EfficientNet-B0 (5 vs. 38), indicating better sensitivity in detecting diseased plants.
+- **Both models achieve very high performance**, but EfficientNet-B0 is more robust and generalizes better on this dataset.
+- **ViT model, despite its larger size and advanced architecture, does not provide a significant advantage** for this specific binary classification problem.
+- **EfficientNet-B0 is preferable for real-world applications** where computational resources and inference speed are important.
+
+

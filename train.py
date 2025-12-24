@@ -80,7 +80,7 @@ def train_model(model_type='cnn'):
     if model_type == 'cnn':
         epochs = 10
         batch_size = 32
-        lr = 0.001
+        lr = 0.0001
         dropout = 0.3
     elif model_type == 'vit':
         epochs = 25
