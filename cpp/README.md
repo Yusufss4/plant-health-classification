@@ -1,6 +1,11 @@
 # C++ inference (ONNX Runtime)
 
-This folder builds a small `infer_mobilenet` binary that runs the exported `checkpoints/mobilenet_v3.onnx` model.
+This folder builds:
+
+- **`infer_mobilenet`** — single-image inference (same as a forward pass in Python).
+- **`evaluate_mobilenet`** — walks `data/test/healthy` and `data/test/diseased` (same layout as `evaluate.py`), computes accuracy, precision, recall, F1, balanced accuracy, specificity, confusion counts, and timing (load + preprocess + ORT), similar to `utils/evaluation.py` + `print_evaluation_results`.
+
+Shared preprocessing and ONNX Runtime calls live in `mobilenet_common`.
 
 ## Contract (must match training)
 
@@ -44,6 +49,16 @@ Run (library path may be required):
 export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
 ./build/infer_mobilenet ../checkpoints/mobilenet_v3.onnx /path/to/leaf.jpg
 ```
+
+### Test-set evaluation (like `python evaluate.py --model mobilenet_v3`)
+
+From repo root, with `data/test/healthy` and `data/test/diseased` populated:
+
+```bash
+./build/evaluate_mobilenet ../checkpoints/mobilenet_v3.onnx ../data/test
+```
+
+Default second argument is `data/test` if omitted (run from `cpp/`). Metrics are for the **diseased** positive class (precision/recall/F1), plus specificity for **healthy**, matching the binary sklearn defaults in Python.
 
 ### Exact parity with Python (same float tensor)
 

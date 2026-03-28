@@ -5,6 +5,8 @@ This module provides comprehensive evaluation metrics and visualization tools
 for comparing EfficientNet-B0 and MobileViT-v2 models.
 """
 
+import time
+
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,11 +21,20 @@ from sklearn.metrics import (
     precision_recall_curve,
     average_precision_score,
     roc_curve,
-    auc
+    auc,
+    balanced_accuracy_score,
+    matthews_corrcoef,
+    roc_auc_score,
 )
 
 
-def evaluate_model(model, dataloader, device, class_names=['healthy', 'diseased']):
+def evaluate_model(
+    model,
+    dataloader,
+    device,
+    class_names=['healthy', 'diseased'],
+    measure_inference_time=True,
+):
     """
     Evaluate model on a dataset and return comprehensive metrics.
     
@@ -32,34 +43,49 @@ def evaluate_model(model, dataloader, device, class_names=['healthy', 'diseased'
         dataloader: DataLoader for evaluation data
         device: Device to run evaluation on (cuda/cpu)
         class_names: List of class names
-    
+        measure_inference_time: If True, wall-clock time for the full eval loop (transfer + forward + softmax).
+
     Returns:
         dict: Dictionary containing all evaluation metrics including:
             - accuracy, precision, recall, f1_score
+            - balanced_accuracy, specificity, mcc, roc_auc (or None if undefined)
+            - inference_timing: total_sec, num_samples, avg_ms_per_image, throughput_imgs_per_sec
             - confusion_matrix with TP, TN, FP, FN
             - probabilities for threshold analysis
             - classification_report
     """
     model.eval()
-    
+
     all_predictions = []
     all_labels = []
     all_probabilities = []
-    
+
+    if measure_inference_time and str(device).startswith('cuda'):
+        torch.cuda.synchronize()
+    t_start = time.perf_counter() if measure_inference_time else None
+
     with torch.no_grad():
         for images, labels in dataloader:
             images = images.to(device)
             labels = labels.to(device)
-            
+
             # Forward pass
             outputs = model(images)
             probabilities = torch.softmax(outputs, dim=1)
             _, predicted = torch.max(outputs, 1)
-            
+
             # Store results
             all_predictions.extend(predicted.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
             all_probabilities.extend(probabilities.cpu().numpy())
+
+    if measure_inference_time:
+        if str(device).startswith('cuda'):
+            torch.cuda.synchronize()
+        t_end = time.perf_counter()
+        total_sec = t_end - t_start
+    else:
+        total_sec = None
     
     # Convert to numpy arrays
     all_predictions = np.array(all_predictions)
@@ -83,12 +109,36 @@ def evaluate_model(model, dataloader, device, class_names=['healthy', 'diseased'
         target_names=class_names,
         output_dict=True
     )
-    
+
+    balanced_acc = balanced_accuracy_score(all_labels, all_predictions)
+    specificity = float(tn) / float(tn + fp) if (tn + fp) > 0 else 0.0
+    mcc = matthews_corrcoef(all_labels, all_predictions)
+
+    try:
+        roc_auc = roc_auc_score(all_labels, all_probabilities[:, 1])
+    except ValueError:
+        roc_auc = None  # e.g. only one class present in y_true
+
+    n_samples = len(all_labels)
+    if measure_inference_time and total_sec is not None and n_samples > 0:
+        inference_timing = {
+            'total_sec': total_sec,
+            'num_samples': n_samples,
+            'avg_ms_per_image': (total_sec / n_samples) * 1000.0,
+            'throughput_imgs_per_sec': n_samples / total_sec if total_sec > 0 else 0.0,
+        }
+    else:
+        inference_timing = None
+
     results = {
         'accuracy': accuracy,
         'precision': precision,
         'recall': recall,
         'f1_score': f1,
+        'balanced_accuracy': balanced_acc,
+        'specificity': specificity,
+        'mcc': mcc,
+        'roc_auc': roc_auc,
         'confusion_matrix': cm,
         'true_positive': int(tp),
         'true_negative': int(tn),
@@ -97,9 +147,10 @@ def evaluate_model(model, dataloader, device, class_names=['healthy', 'diseased'
         'classification_report': report,
         'predictions': all_predictions,
         'labels': all_labels,
-        'probabilities': all_probabilities
+        'probabilities': all_probabilities,
+        'inference_timing': inference_timing,
     }
-    
+
     return results
 
 
@@ -117,10 +168,27 @@ def print_evaluation_results(results, class_names=['healthy', 'diseased']):
     
     print(f"\nOverall Metrics:")
     print(f"  Accuracy:  {results['accuracy']:.4f} ({results['accuracy']*100:.2f}%)")
-    print(f"  Precision: {results['precision']:.4f} ({results['precision']*100:.2f}%)")
-    print(f"  Recall:    {results['recall']:.4f} ({results['recall']*100:.2f}%)")
-    print(f"  F1-Score:  {results['f1_score']:.4f} ({results['f1_score']*100:.2f}%)")
-    
+    if results.get('balanced_accuracy') is not None:
+        print(f"  Balanced accuracy: {results['balanced_accuracy']:.4f} ({results['balanced_accuracy']*100:.2f}%)")
+    print(f"  Precision (diseased): {results['precision']:.4f} ({results['precision']*100:.2f}%)")
+    print(f"  Recall (diseased):    {results['recall']:.4f} ({results['recall']*100:.2f}%)")
+    print(f"  F1-Score (diseased):  {results['f1_score']:.4f} ({results['f1_score']*100:.2f}%)")
+    if results.get('specificity') is not None:
+        print(f"  Specificity (healthy): {results['specificity']:.4f} ({results['specificity']*100:.2f}%)")
+    if results.get('mcc') is not None:
+        print(f"  MCC:       {results['mcc']:.4f}")
+    if results.get('roc_auc') is not None:
+        print(f"  ROC-AUC:   {results['roc_auc']:.4f}")
+    elif 'roc_auc' in results:
+        print(f"  ROC-AUC:   n/a (need both classes in labels)")
+
+    timing = results.get('inference_timing')
+    if timing:
+        print(f"\nInference timing (full eval loop, {timing['num_samples']} samples):")
+        print(f"  Total:     {timing['total_sec']:.4f} s")
+        print(f"  Avg/image: {timing['avg_ms_per_image']:.3f} ms")
+        print(f"  Throughput: {timing['throughput_imgs_per_sec']:.2f} img/s")
+
     print(f"\nConfusion Matrix:")
     cm = results['confusion_matrix']
     print(f"                  Predicted")

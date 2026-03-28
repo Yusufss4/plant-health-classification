@@ -27,17 +27,31 @@ if(NOT EXISTS "${STB_IMAGE_H}")
   )
 endif()
 
-add_executable(infer_mobilenet infer_mobilenet.cpp)
-target_include_directories(infer_mobilenet PRIVATE
+add_library(mobilenet_common STATIC mobilenet_common.cpp)
+target_include_directories(mobilenet_common PRIVATE
   "${ORT_ROOT}/include"
   "${CMAKE_CURRENT_BINARY_DIR}"
 )
-target_link_directories(infer_mobilenet PRIVATE "${ORT_ROOT}/lib")
-target_link_libraries(infer_mobilenet PRIVATE onnxruntime)
+target_link_directories(mobilenet_common PRIVATE "${ORT_ROOT}/lib")
+target_link_libraries(mobilenet_common PUBLIC onnxruntime)
 
-if(UNIX AND NOT APPLE)
-  set_target_properties(infer_mobilenet PROPERTIES
-    BUILD_RPATH "${ORT_ROOT}/lib"
-    INSTALL_RPATH "\$ORIGIN/../lib"
-  )
-endif()
+function(link_ort_rpath target_name)
+  if(UNIX AND NOT APPLE)
+    set_target_properties(${target_name} PROPERTIES
+      BUILD_RPATH "${ORT_ROOT}/lib"
+      INSTALL_RPATH "\$ORIGIN/../lib"
+    )
+  endif()
+endfunction()
+
+add_executable(infer_mobilenet infer_mobilenet.cpp)
+target_include_directories(infer_mobilenet PRIVATE "${ORT_ROOT}/include")
+target_link_directories(infer_mobilenet PRIVATE "${ORT_ROOT}/lib")
+target_link_libraries(infer_mobilenet PRIVATE mobilenet_common onnxruntime)
+link_ort_rpath(infer_mobilenet)
+
+add_executable(evaluate_mobilenet evaluate_mobilenet.cpp)
+target_include_directories(evaluate_mobilenet PRIVATE "${ORT_ROOT}/include")
+target_link_directories(evaluate_mobilenet PRIVATE "${ORT_ROOT}/lib")
+target_link_libraries(evaluate_mobilenet PRIVATE mobilenet_common onnxruntime)
+link_ort_rpath(evaluate_mobilenet)
