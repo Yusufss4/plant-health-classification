@@ -3,6 +3,7 @@ Models package for plant health classification.
 
 This package includes:
 - EfficientNet-B0: Modern efficient CNN (replaces traditional FCNN)
+- MobileNet-v3-Small: Lightweight CNN for edge / fast inference
 - DINOv3 ViT-S/14: Self-supervised Vision Transformer (main model)
 
 EfficientNet-B0 is used instead of traditional FCNN for:
@@ -22,12 +23,15 @@ DINOv3 ViT-S/14 is used for:
 """
 
 from .efficientnet import EfficientNetB0, create_cnn_model
+from .mobilenet_v3 import MobileNetV3Small, create_mobilenet_v3_model
 from .vit import DINOv3ViT, VisionTransformer, create_vit_model
 
 __all__ = [
     'EfficientNetB0',
     'create_cnn_model',
+    'MobileNetV3Small',
+    'create_mobilenet_v3_model',
     'DINOv3ViT',
     'VisionTransformer',  # Alias for backwards compatibility
-    'create_vit_model'
+    'create_vit_model',
 ]

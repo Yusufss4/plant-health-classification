@@ -5,7 +5,7 @@ Usage:
     python train.py [--model MODEL_TYPE]
     
 Arguments:
-    --model: Model type to train ('cnn' or 'vit'). Default: trains both models
+    --model: 'cnn', 'vit', 'mobilenet_v3', or 'both' (cnn+vit). Default: both
 """
 
 import argparse
@@ -15,7 +15,7 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 
-from models import create_cnn_model, create_vit_model
+from models import create_cnn_model, create_mobilenet_v3_model, create_vit_model
 from utils import create_data_loaders, calculate_metrics_per_epoch
 
 
@@ -82,13 +82,20 @@ def train_model(model_type='cnn'):
         batch_size = 32
         lr = 0.0001
         dropout = 0.3
+    elif model_type == 'mobilenet_v3':
+        epochs = 10
+        batch_size = 32
+        lr = 0.0001
+        dropout = 0.2
     elif model_type == 'vit':
         epochs = 25
         batch_size = 16
         lr = 0.0001
         dropout = 0.1
     else:
-        raise ValueError(f"Unknown model type: {model_type}. Use 'cnn' or 'vit'")
+        raise ValueError(
+            f"Unknown model type: {model_type}. Use 'cnn', 'mobilenet_v3', or 'vit'"
+        )
     
     weight_decay = 1e-4
     checkpoint_dir = 'checkpoints'
@@ -115,6 +122,8 @@ def train_model(model_type='cnn'):
     print(f'\nCreating {model_type.upper()} model...')
     if model_type == 'cnn':
         model = create_cnn_model(num_classes=2, dropout=dropout)
+    elif model_type == 'mobilenet_v3':
+        model = create_mobilenet_v3_model(num_classes=2, dropout=dropout)
     else:  # vit
         model = create_vit_model(num_classes=2, dropout=dropout)
     
@@ -207,17 +216,25 @@ def main():
         '--model',
         type=str,
         default='both',
-        choices=['cnn', 'vit', 'both'],
-        help='Model type to train (cnn, vit, or both). Default: both'
+        choices=['cnn', 'vit', 'mobilenet_v3', 'both'],
+        help='Model type: cnn (EfficientNet-B0), mobilenet_v3, vit, or both (cnn+vit)'
     )
     
     args = parser.parse_args()
     
     model_names = {
         'cnn': 'EfficientNet-B0',
-        'vit': 'DINOv3 Vision Transformer'
+        'vit': 'DINOv3 Vision Transformer',
+        'mobilenet_v3': 'MobileNet-v3-Small',
     }
-    
+
+    if args.model == 'mobilenet_v3':
+        print("=" * 80)
+        print(f"Training {model_names['mobilenet_v3']} Model")
+        print("=" * 80)
+        train_model(model_type='mobilenet_v3')
+        return
+
     if args.model == 'both' or args.model == 'cnn':
         print("="*80)
         print(f"Training {model_names['cnn']} Model")

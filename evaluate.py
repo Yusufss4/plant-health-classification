@@ -5,14 +5,14 @@ Usage:
     python evaluate.py [--model MODEL_TYPE]
     
 Arguments:
-    --model: Model type to evaluate ('cnn' or 'vit'). Default: 'cnn'
+    --model: 'cnn', 'mobilenet_v3', or 'vit'. Default: 'cnn'
 """
 
 import argparse
 import os
 import torch
 
-from models import create_cnn_model, create_vit_model
+from models import create_cnn_model, create_mobilenet_v3_model, create_vit_model
 from utils import (
     create_data_loaders,
     evaluate_model,
@@ -26,7 +26,7 @@ def load_model(model_type, weights_path, device):
     Load a trained model from checkpoint.
     
     Args:
-        model_type: Type of model ('cnn' or 'vit')
+        model_type: Type of model ('cnn', 'mobilenet_v3', or 'vit')
         weights_path: Path to model weights
         device: Device to load model on
     
@@ -38,6 +38,8 @@ def load_model(model_type, weights_path, device):
     # Create model
     if model_type == 'cnn':
         model = create_cnn_model(num_classes=2)
+    elif model_type == 'mobilenet_v3':
+        model = create_mobilenet_v3_model(num_classes=2)
     elif model_type == 'vit':
         model = create_vit_model(num_classes=2)
     else:
@@ -73,7 +75,7 @@ def evaluate_single_model(model_type='cnn'):
     Evaluate a single model on the test set.
     
     Args:
-        model_type: Type of model to evaluate ('cnn' or 'vit')
+        model_type: Type of model to evaluate ('cnn', 'mobilenet_v3', or 'vit')
     """
     # Hardcoded configuration
     test_dir = 'data/test'
@@ -123,15 +125,16 @@ def main():
         '--model',
         type=str,
         default='cnn',
-        choices=['cnn', 'vit'],
-        help='Model type to evaluate (cnn or vit). Default: cnn'
+        choices=['cnn', 'vit', 'mobilenet_v3'],
+        help='Model type to evaluate. Default: cnn'
     )
     
     args = parser.parse_args()
     
     model_names = {
         'cnn': 'EfficientNet-B0',
-        'vit': 'DINOv3 Vision Transformer'
+        'vit': 'DINOv3 Vision Transformer',
+        'mobilenet_v3': 'MobileNet-v3-Small',
     }
     
     print("="*80)
