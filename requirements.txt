@@ -29,6 +29,6 @@ tensorflow-datasets>=4.9.0
 # jupyter>=1.0.0
 # ipykernel>=6.22.0
 
-# Optional: For model optimization
-# onnx>=1.13.0
-# onnxruntime>=1.14.0
+# ONNX export and C++ parity (export_mobilenet_onnx.py)
+onnx>=1.13.0
+onnxruntime>=1.14.0

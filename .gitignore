@@ -209,6 +209,7 @@ __marimo__/
 # Project-specific
 data/
 checkpoints/
+third_party/onnxruntime/
 *.pth
 *.png
 *.jpg   
