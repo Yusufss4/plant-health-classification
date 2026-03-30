@@ -1,0 +1,45 @@
+{
+  "version": 4,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "local",
+      "displayName": "Local (linux-x64)",
+      "description": "Native build; ONNXRUNTIME_ROOT defaults to third_party linux-x64 (1.17.3).",
+      "binaryDir": "${sourceDir}/build/local",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      },
+      "environment": {
+        "ONNXRUNTIME_ROOT": "${sourceDir}/../third_party/onnxruntime/onnxruntime-linux-x64-1.17.3"
+      }
+    },
+    {
+      "name": "rpi-zero2w",
+      "displayName": "Raspberry Pi Zero 2 W (aarch64 cross)",
+      "description": "aarch64-linux-gnu cross build; ONNXRUNTIME_ROOT defaults to third_party linux-aarch64 (1.17.3).",
+      "binaryDir": "${sourceDir}/build/rpi-zero2w",
+      "toolchainFile": "${sourceDir}/cmake/toolchain-rpi-aarch64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      },
+      "environment": {
+        "ONNXRUNTIME_ROOT": "${sourceDir}/../third_party/onnxruntime/onnxruntime-linux-aarch64-1.17.3"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "local",
+      "configurePreset": "local"
+    },
+    {
+      "name": "rpi-zero2w",
+      "configurePreset": "rpi-zero2w"
+    }
+  ]
+}

@@ -22,6 +22,10 @@ scikit-learn>=1.2.0
 tqdm>=4.65.0
 
 # Data preparation (for automatic dataset download)
+# Pin protobuf <7: TFDS 4.9.x reads field.label on protobuf descriptors; protobuf 7 uses
+# UPB descriptors without .label (AttributeError in dataset_info.read_from_directory).
+# TensorFlow 2.21+ requires protobuf>=6.31.1,<8.
+protobuf>=6.31.1,<7
 tensorflow>=2.13.0
 tensorflow-datasets>=4.9.0
 
