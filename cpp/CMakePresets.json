@@ -67,6 +67,17 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "rpi-zero2w-live",
+      "displayName": "Raspberry Pi Zero 2 W — live (libcamera+DRM+tests)",
+      "description": "Cross build with libcamera + DRM/KMS enabled and tests on.",
+      "inherits": "rpi-zero2w-release",
+      "cacheVariables": {
+        "ENABLE_LIBCAMERA": "ON",
+        "ENABLE_DRMKMS": "ON",
+        "ENABLE_TESTS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -85,6 +96,10 @@
     {
       "name": "rpi-zero2w-release",
       "configurePreset": "rpi-zero2w-release"
+    },
+    {
+      "name": "rpi-zero2w-live",
+      "configurePreset": "rpi-zero2w-live"
     }
   ]
 }

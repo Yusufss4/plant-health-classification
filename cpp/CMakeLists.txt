@@ -4,6 +4,10 @@ project(mobilenet_plant_infer LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(ENABLE_LIBCAMERA "Build libcamera-based capture module" OFF)
+option(ENABLE_DRMKMS "Build DRM/KMS display module" OFF)
+option(ENABLE_TESTS "Build unit tests" ON)
+
 if(NOT DEFINED ENV{ONNXRUNTIME_ROOT})
   message(FATAL_ERROR
     "ONNXRUNTIME_ROOT is not set. Extract the ONNX Runtime release tarball and point to it, e.g.:\n"
@@ -27,13 +31,51 @@ if(NOT EXISTS "${STB_IMAGE_H}")
   )
 endif()
 
-add_library(mobilenet_common STATIC mobilenet_common.cpp)
-target_include_directories(mobilenet_common PRIVATE
-  "${ORT_ROOT}/include"
+add_library(phc_preprocess STATIC
+  src/preprocess/mobilenet_preprocess.cpp
+)
+target_include_directories(phc_preprocess PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
   "${CMAKE_CURRENT_BINARY_DIR}"
 )
-target_link_directories(mobilenet_common PRIVATE "${ORT_ROOT}/lib")
-target_link_libraries(mobilenet_common PUBLIC onnxruntime)
+
+add_library(phc_inference_ort STATIC
+  src/inference_ort/ort_engine.cpp
+)
+target_include_directories(phc_inference_ort PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${ORT_ROOT}/include"
+)
+target_link_directories(phc_inference_ort PUBLIC "${ORT_ROOT}/lib")
+target_link_libraries(phc_inference_ort PUBLIC onnxruntime)
+
+add_library(phc_app_runtime STATIC
+  src/app_runtime/live_pipeline.cpp
+)
+target_include_directories(phc_app_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(phc_app_runtime PUBLIC phc_preprocess phc_inference_ort)
+
+if(ENABLE_LIBCAMERA)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(LIBCAMERA REQUIRED IMPORTED_TARGET libcamera)
+  add_library(phc_camera_libcamera STATIC
+    src/camera_libcamera/libcamera_camera.cpp
+  )
+  target_include_directories(phc_camera_libcamera PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(phc_camera_libcamera PUBLIC PkgConfig::LIBCAMERA)
+  target_compile_definitions(phc_camera_libcamera PUBLIC PHC_HAVE_LIBCAMERA=1)
+endif()
+
+if(ENABLE_DRMKMS)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(LIBDRM REQUIRED IMPORTED_TARGET libdrm)
+  add_library(phc_display_drm STATIC
+    src/display_drm/drm_display.cpp
+  )
+  target_include_directories(phc_display_drm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(phc_display_drm PUBLIC PkgConfig::LIBDRM)
+  target_compile_definitions(phc_display_drm PUBLIC PHC_HAVE_DRM=1)
+endif()
 
 function(link_ort_rpath target_name)
   if(UNIX AND NOT APPLE)
@@ -47,11 +89,55 @@ endfunction()
 add_executable(infer_mobilenet infer_mobilenet.cpp)
 target_include_directories(infer_mobilenet PRIVATE "${ORT_ROOT}/include")
 target_link_directories(infer_mobilenet PRIVATE "${ORT_ROOT}/lib")
-target_link_libraries(infer_mobilenet PRIVATE mobilenet_common onnxruntime)
+target_link_libraries(infer_mobilenet PRIVATE phc_preprocess phc_inference_ort onnxruntime)
 link_ort_rpath(infer_mobilenet)
 
 add_executable(evaluate_mobilenet evaluate_mobilenet.cpp)
 target_include_directories(evaluate_mobilenet PRIVATE "${ORT_ROOT}/include")
 target_link_directories(evaluate_mobilenet PRIVATE "${ORT_ROOT}/lib")
-target_link_libraries(evaluate_mobilenet PRIVATE mobilenet_common onnxruntime)
+target_link_libraries(evaluate_mobilenet PRIVATE phc_preprocess phc_inference_ort onnxruntime)
 link_ort_rpath(evaluate_mobilenet)
+
+if(ENABLE_LIBCAMERA AND ENABLE_DRMKMS)
+  add_executable(live_infer_display
+    apps/live_infer_display/main.cpp
+  )
+  target_include_directories(live_infer_display PRIVATE "${ORT_ROOT}/include" "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(live_infer_display PRIVATE
+    phc_app_runtime
+    phc_camera_libcamera
+    phc_display_drm
+    phc_inference_ort
+    phc_preprocess
+    onnxruntime
+  )
+  link_ort_rpath(live_infer_display)
+endif()
+
+if(ENABLE_TESTS)
+  include(CTest)
+  enable_testing()
+
+  include(FetchContent)
+  FetchContent_Declare(
+    catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG v3.6.0
+  )
+  FetchContent_MakeAvailable(catch2)
+
+  add_executable(phc_tests
+    tests/test_preprocess.cpp
+    tests/test_live_pipeline.cpp
+    tests/pi_smoke_live.cpp
+  )
+  target_include_directories(phc_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(phc_tests PRIVATE Catch2::Catch2WithMain phc_preprocess phc_app_runtime)
+  if(ENABLE_LIBCAMERA)
+    target_link_libraries(phc_tests PRIVATE phc_camera_libcamera)
+  endif()
+  if(ENABLE_DRMKMS)
+    target_link_libraries(phc_tests PRIVATE phc_display_drm)
+  endif()
+  add_test(NAME phc_tests COMMAND phc_tests)
+endif()

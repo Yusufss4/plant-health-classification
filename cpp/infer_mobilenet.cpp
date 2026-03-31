@@ -6,7 +6,8 @@
  *   infer_mobilenet <model.onnx> --tensor-bin <float32_nchw_1x3x224x224.bin>
  */
 
-#include "mobilenet_common.hpp"
+#include "src/inference_ort/ort_engine.hpp"
+#include "src/preprocess/mobilenet_preprocess.hpp"
 
 #include <cstring>
 #include <iostream>
@@ -14,16 +15,17 @@
 
 int main(int argc, char** argv) {
   std::string model_path;
-  std::vector<float> input_nchw;
+  phc::TensorF32 input;
+  phc::MobilenetPreprocessor pp;
 
   if (argc == 4 && std::strcmp(argv[2], "--tensor-bin") == 0) {
     model_path = argv[1];
-    if (!mobilenet::LoadTensorBin(argv[3], input_nchw)) {
+    if (!pp.LoadTensorBin(argv[3], input)) {
       return 1;
     }
   } else if (argc == 3) {
     model_path = argv[1];
-    if (!mobilenet::ImageToNchw(argv[2], input_nchw)) {
+    if (!pp.ImageFileToTensorNchw(argv[2], input)) {
       return 1;
     }
   } else {
@@ -33,19 +35,14 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "infer");
-  Ort::SessionOptions opts;
-  opts.SetIntraOpNumThreads(1);
-  opts.SetInterOpNumThreads(1);
-
-#ifdef _WIN32
-  std::wstring wmodel(model_path.begin(), model_path.end());
-  Ort::Session session(env, wmodel.c_str(), opts);
-#else
-  Ort::Session session(env, model_path.c_str(), opts);
-#endif
-
-  std::vector<float> logits = mobilenet::RunInference(session, input_nchw);
-  mobilenet::PrintLogitsLine(logits.data(), logits.size());
+  phc::OrtInferenceEngine engine(model_path);
+  const phc::InferenceResult r = engine.Run(input);
+  if (r.logits.size() >= 2 && r.probabilities.size() >= 2) {
+    std::cout << "logits: [" << r.logits[0] << ", " << r.logits[1] << "]\n";
+    std::cout << "prob:   [" << r.probabilities[0] << ", " << r.probabilities[1] << "]\n";
+    std::cout << "class:  " << r.label << " (" << (r.label_name.empty() ? "?" : r.label_name) << ")\n";
+  } else {
+    std::cout << "class:  " << r.label << " (" << (r.label_name.empty() ? "?" : r.label_name) << ")\n";
+  }
   return 0;
 }

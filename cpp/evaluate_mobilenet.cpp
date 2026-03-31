@@ -1,7 +1,7 @@
 /**
  * Evaluate MobileNet ONNX on a folder layout matching evaluate.py / PlantHealthDataset:
- *   test_dir/healthy/*.jpg|png|jpeg
- *   test_dir/diseased/*.jpg|png|jpeg
+ *   test_dir/healthy/(.jpg|.png|.jpeg)
+ *   test_dir/diseased/(.jpg|.png|.jpeg)
  *
  * Usage:
  *   evaluate_mobilenet <model.onnx> [test_dir]
@@ -10,7 +10,8 @@
  * and timing (load + preprocess + ORT per image).
  */
 
-#include "mobilenet_common.hpp"
+#include "src/inference_ort/ort_engine.hpp"
+#include "src/preprocess/mobilenet_preprocess.hpp"
 
 #include <chrono>
 #include <cmath>
@@ -62,13 +63,9 @@ std::vector<LabeledPath> CollectImages(const fs::path& test_root) {
   return out;
 }
 
-int Argmax2(const std::vector<float>& logits) {
-  return logits[0] >= logits[1] ? 0 : 1;
-}
-
 void PrintMetrics(int64_t tn, int64_t fp, int64_t fn, int64_t tp, double total_sec, size_t n) {
   const double n_d = static_cast<double>(n);
-  const double acc = (tp + tn) / n_d;
+  const double acc = static_cast<double>(tp + tn) / n_d;
   const double prec = (tp + fp) > 0 ? static_cast<double>(tp) / static_cast<double>(tp + fp) : 0.0;
   const double rec = (tp + fn) > 0 ? static_cast<double>(tp) / static_cast<double>(tp + fn) : 0.0;
   const double f1 = (prec + rec) > 1e-12 ? 2.0 * prec * rec / (prec + rec) : 0.0;
@@ -123,23 +120,14 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "eval");
-  Ort::SessionOptions opts;
-  opts.SetIntraOpNumThreads(1);
-  opts.SetInterOpNumThreads(1);
-
-#ifdef _WIN32
-  std::wstring wmodel(model_path.begin(), model_path.end());
-  Ort::Session session(env, wmodel.c_str(), opts);
-#else
-  Ort::Session session(env, model_path.c_str(), opts);
-#endif
+  phc::MobilenetPreprocessor pp;
+  phc::OrtInferenceEngine engine(model_path);
 
   // Warm-up (ORT thread pools, caches)
   {
-    std::vector<float> nchw;
-    if (mobilenet::ImageToNchw(items[0].path, nchw)) {
-      (void)mobilenet::RunInference(session, nchw);
+    phc::TensorF32 t;
+    if (pp.ImageFileToTensorNchw(items[0].path, t)) {
+      (void)engine.Run(t);
     }
   }
 
@@ -147,17 +135,17 @@ int main(int argc, char** argv) {
   const auto t0 = std::chrono::high_resolution_clock::now();
 
   for (const auto& item : items) {
-    std::vector<float> nchw;
-    if (!mobilenet::ImageToNchw(item.path, nchw)) {
+    phc::TensorF32 t;
+    if (!pp.ImageFileToTensorNchw(item.path, t)) {
       std::cerr << "Skip: " << item.path << "\n";
       continue;
     }
-    std::vector<float> logits = mobilenet::RunInference(session, nchw);
-    if (logits.size() < 2) {
+    phc::InferenceResult r = engine.Run(t);
+    if (r.logits.size() < 2) {
       std::cerr << "Bad output size\n";
       continue;
     }
-    const int pred = Argmax2(logits);
+    const int pred = (r.logits[0] >= r.logits[1]) ? 0 : 1;
     const int y = item.label;
     if (y == 0 && pred == 0) {
       ++tn;
