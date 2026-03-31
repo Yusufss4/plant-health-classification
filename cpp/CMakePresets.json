@@ -7,10 +7,11 @@
   },
   "configurePresets": [
     {
-      "name": "local",
-      "displayName": "Local (linux-x64)",
+      "name": "local-base",
+      "displayName": "Local (linux-x64) — base",
       "description": "Native build; ONNXRUNTIME_ROOT defaults to third_party linux-x64 (1.17.3).",
       "binaryDir": "${sourceDir}/build/local",
+      "toolchainFile": "${sourceDir}/toolchains/gcc/toolchain.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       },
@@ -19,27 +20,71 @@
       }
     },
     {
-      "name": "rpi-zero2w",
-      "displayName": "Raspberry Pi Zero 2 W (aarch64 cross)",
+      "name": "rpi-zero2w-base",
+      "displayName": "Raspberry Pi Zero 2 W (aarch64 cross) — base",
       "description": "aarch64-linux-gnu cross build; ONNXRUNTIME_ROOT defaults to third_party linux-aarch64 (1.17.3).",
       "binaryDir": "${sourceDir}/build/rpi-zero2w",
-      "toolchainFile": "${sourceDir}/cmake/toolchain-rpi-aarch64.cmake",
+      "toolchainFile": "${sourceDir}/toolchains/rpi-aarch64/toolchain.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       },
       "environment": {
         "ONNXRUNTIME_ROOT": "${sourceDir}/../third_party/onnxruntime/onnxruntime-linux-aarch64-1.17.3"
       }
+    },
+    {
+      "name": "local-debug",
+      "displayName": "Local (linux-x64) — Debug",
+      "inherits": "local-base",
+      "binaryDir": "${sourceDir}/build/local-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "local-release",
+      "displayName": "Local (linux-x64) — Release",
+      "inherits": "local-base",
+      "binaryDir": "${sourceDir}/build/local-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "rpi-zero2w-debug",
+      "displayName": "Raspberry Pi Zero 2 W (aarch64 cross) — Debug",
+      "inherits": "rpi-zero2w-base",
+      "binaryDir": "${sourceDir}/build/rpi-zero2w-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "rpi-zero2w-release",
+      "displayName": "Raspberry Pi Zero 2 W (aarch64 cross) — Release",
+      "inherits": "rpi-zero2w-base",
+      "binaryDir": "${sourceDir}/build/rpi-zero2w-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     }
   ],
   "buildPresets": [
     {
-      "name": "local",
-      "configurePreset": "local"
+      "name": "local-debug",
+      "configurePreset": "local-debug"
     },
     {
-      "name": "rpi-zero2w",
-      "configurePreset": "rpi-zero2w"
+      "name": "local-release",
+      "configurePreset": "local-release"
+    },
+    {
+      "name": "rpi-zero2w-debug",
+      "configurePreset": "rpi-zero2w-debug"
+    },
+    {
+      "name": "rpi-zero2w-release",
+      "configurePreset": "rpi-zero2w-release"
     }
   ]
 }
