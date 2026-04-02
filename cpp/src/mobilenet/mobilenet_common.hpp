@@ -21,3 +21,4 @@ std::vector<float> RunInference(Ort::Session& session, const std::vector<float>&
 void PrintLogitsLine(const float* logits, size_t n);
 
 }  // namespace mobilenet
+

@@ -10,8 +10,8 @@
  * and timing (load + preprocess + ORT per image).
  */
 
-#include "src/inference_ort/ort_engine.hpp"
-#include "src/preprocess/mobilenet_preprocess.hpp"
+#include "inference_ort/ort_engine.hpp"
+#include "preprocess/mobilenet_preprocess.hpp"
 
 #include <chrono>
 #include <cmath>
@@ -172,3 +172,4 @@ int main(int argc, char** argv) {
   PrintMetrics(tn, fp, fn, tp, total_sec, n);
   return 0;
 }
+

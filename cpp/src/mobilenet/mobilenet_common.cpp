@@ -1,4 +1,4 @@
-#include "mobilenet_common.hpp"
+#include "mobilenet/mobilenet_common.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -143,3 +143,4 @@ void PrintLogitsLine(const float* logits, size_t n) {
 }
 
 }  // namespace mobilenet
+

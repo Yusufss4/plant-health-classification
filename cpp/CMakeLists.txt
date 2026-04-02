@@ -5,7 +5,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(ENABLE_LIBCAMERA "Build libcamera-based capture module" OFF)
-option(ENABLE_DRMKMS "Build DRM/KMS display module" OFF)
 option(ENABLE_TESTS "Build unit tests" ON)
 
 if(NOT DEFINED ENV{ONNXRUNTIME_ROOT})
@@ -27,6 +26,15 @@ if(NOT EXISTS "${STB_IMAGE_H}")
   file(DOWNLOAD
     "https://raw.githubusercontent.com/nothings/stb/master/stb_image.h"
     "${STB_IMAGE_H}"
+    SHOW_PROGRESS
+  )
+endif()
+
+set(STB_IMAGE_WRITE_H "${CMAKE_CURRENT_BINARY_DIR}/stb_image_write.h")
+if(NOT EXISTS "${STB_IMAGE_WRITE_H}")
+  file(DOWNLOAD
+    "https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h"
+    "${STB_IMAGE_WRITE_H}"
     SHOW_PROGRESS
   )
 endif()
@@ -55,6 +63,14 @@ add_library(phc_app_runtime STATIC
 target_include_directories(phc_app_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(phc_app_runtime PUBLIC phc_preprocess phc_inference_ort)
 
+add_library(phc_display_file STATIC
+  src/display_file/file_artifact_display.cpp
+)
+target_include_directories(phc_display_file PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${CMAKE_CURRENT_BINARY_DIR}"
+)
+
 if(ENABLE_LIBCAMERA)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(LIBCAMERA REQUIRED IMPORTED_TARGET libcamera)
@@ -63,18 +79,6 @@ if(ENABLE_LIBCAMERA)
   )
   target_include_directories(phc_camera_libcamera PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(phc_camera_libcamera PUBLIC PkgConfig::LIBCAMERA)
-  target_compile_definitions(phc_camera_libcamera PUBLIC PHC_HAVE_LIBCAMERA=1)
-endif()
-
-if(ENABLE_DRMKMS)
-  find_package(PkgConfig REQUIRED)
-  pkg_check_modules(LIBDRM REQUIRED IMPORTED_TARGET libdrm)
-  add_library(phc_display_drm STATIC
-    src/display_drm/drm_display.cpp
-  )
-  target_include_directories(phc_display_drm PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  target_link_libraries(phc_display_drm PUBLIC PkgConfig::LIBDRM)
-  target_compile_definitions(phc_display_drm PUBLIC PHC_HAVE_DRM=1)
 endif()
 
 function(link_ort_rpath target_name)
@@ -86,32 +90,32 @@ function(link_ort_rpath target_name)
   endif()
 endfunction()
 
-add_executable(infer_mobilenet infer_mobilenet.cpp)
-target_include_directories(infer_mobilenet PRIVATE "${ORT_ROOT}/include")
-target_link_directories(infer_mobilenet PRIVATE "${ORT_ROOT}/lib")
-target_link_libraries(infer_mobilenet PRIVATE phc_preprocess phc_inference_ort onnxruntime)
-link_ort_rpath(infer_mobilenet)
+add_executable(phc_infer_mobilenet tools/infer_mobilenet.cpp)
+target_include_directories(phc_infer_mobilenet PRIVATE "${ORT_ROOT}/include")
+target_link_directories(phc_infer_mobilenet PRIVATE "${ORT_ROOT}/lib")
+target_link_libraries(phc_infer_mobilenet PRIVATE phc_preprocess phc_inference_ort onnxruntime)
+link_ort_rpath(phc_infer_mobilenet)
 
-add_executable(evaluate_mobilenet evaluate_mobilenet.cpp)
-target_include_directories(evaluate_mobilenet PRIVATE "${ORT_ROOT}/include")
-target_link_directories(evaluate_mobilenet PRIVATE "${ORT_ROOT}/lib")
-target_link_libraries(evaluate_mobilenet PRIVATE phc_preprocess phc_inference_ort onnxruntime)
-link_ort_rpath(evaluate_mobilenet)
+add_executable(phc_evaluate_mobilenet tools/evaluate_mobilenet.cpp)
+target_include_directories(phc_evaluate_mobilenet PRIVATE "${ORT_ROOT}/include")
+target_link_directories(phc_evaluate_mobilenet PRIVATE "${ORT_ROOT}/lib")
+target_link_libraries(phc_evaluate_mobilenet PRIVATE phc_preprocess phc_inference_ort onnxruntime)
+link_ort_rpath(phc_evaluate_mobilenet)
 
-if(ENABLE_LIBCAMERA AND ENABLE_DRMKMS)
-  add_executable(live_infer_display
-    apps/live_infer_display/main.cpp
+if(ENABLE_LIBCAMERA)
+  add_executable(live_infer_web
+    apps/live_infer_web/main.cpp
   )
-  target_include_directories(live_infer_display PRIVATE "${ORT_ROOT}/include" "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  target_link_libraries(live_infer_display PRIVATE
+  target_include_directories(live_infer_web PRIVATE "${ORT_ROOT}/include" "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(live_infer_web PRIVATE
     phc_app_runtime
     phc_camera_libcamera
-    phc_display_drm
+    phc_display_file
     phc_inference_ort
     phc_preprocess
     onnxruntime
   )
-  link_ort_rpath(live_infer_display)
+  link_ort_rpath(live_infer_web)
 endif()
 
 if(ENABLE_TESTS)
@@ -126,18 +130,18 @@ if(ENABLE_TESTS)
   )
   FetchContent_MakeAvailable(catch2)
 
-  add_executable(phc_tests
+  set(PHC_TEST_SOURCES
     tests/test_preprocess.cpp
     tests/test_live_pipeline.cpp
-    tests/pi_smoke_live.cpp
   )
+  if(ENABLE_LIBCAMERA)
+    list(APPEND PHC_TEST_SOURCES tests/pi_smoke_live.cpp)
+  endif()
+  add_executable(phc_tests ${PHC_TEST_SOURCES})
   target_include_directories(phc_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(phc_tests PRIVATE Catch2::Catch2WithMain phc_preprocess phc_app_runtime)
   if(ENABLE_LIBCAMERA)
-    target_link_libraries(phc_tests PRIVATE phc_camera_libcamera)
-  endif()
-  if(ENABLE_DRMKMS)
-    target_link_libraries(phc_tests PRIVATE phc_display_drm)
+    target_link_libraries(phc_tests PRIVATE phc_camera_libcamera phc_display_file)
   endif()
   add_test(NAME phc_tests COMMAND phc_tests)
 endif()

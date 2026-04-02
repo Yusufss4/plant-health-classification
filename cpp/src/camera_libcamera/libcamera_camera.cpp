@@ -7,7 +7,6 @@
 #include <thread>
 #include <utility>
 
-#if defined(PHC_HAVE_LIBCAMERA)
 #include <libcamera/camera.h>
 #include <libcamera/camera_manager.h>
 #include <libcamera/control_ids.h>
@@ -18,7 +17,6 @@
 
 #include <sys/mman.h>
 #include <unistd.h>
-#endif
 
 namespace phc {
 
@@ -26,7 +24,6 @@ struct LibcameraCamera::Impl {
   FrameCallback cb;
   std::atomic<bool> running{false};
 
-#if defined(PHC_HAVE_LIBCAMERA)
   std::unique_ptr<libcamera::CameraManager> cm;
   std::shared_ptr<libcamera::Camera> camera;
   std::unique_ptr<libcamera::CameraConfiguration> config;
@@ -34,9 +31,6 @@ struct LibcameraCamera::Impl {
   libcamera::Stream* stream = nullptr;
   std::vector<std::unique_ptr<libcamera::Request>> requests;
   std::mutex mu;
-#else
-  std::thread stub_thread;
-#endif
 
   uint64_t NowNs() const {
     using Clock = std::chrono::steady_clock;
@@ -62,11 +56,6 @@ bool LibcameraCamera::Start(FrameCallback cb) {
   }
   impl_->cb = std::move(cb);
 
-#if !defined(PHC_HAVE_LIBCAMERA)
-  std::cerr << "LibcameraCamera: libcamera not available in this build (ENABLE_LIBCAMERA requires libcamera dev headers).\n";
-  impl_->running = false;
-  return false;
-#else
   impl_->cm = std::make_unique<libcamera::CameraManager>();
   if (impl_->cm->start()) {
     std::cerr << "libcamera CameraManager start failed\n";
@@ -215,7 +204,6 @@ bool LibcameraCamera::Start(FrameCallback cb) {
   }
 
   return true;
-#endif
 }
 
 void LibcameraCamera::Stop() {
@@ -226,7 +214,6 @@ void LibcameraCamera::Stop() {
     return;
   }
 
-#if defined(PHC_HAVE_LIBCAMERA)
   if (impl_->camera) {
     impl_->camera->stop();
   }
@@ -244,12 +231,6 @@ void LibcameraCamera::Stop() {
     impl_->cm->stop();
     impl_->cm.reset();
   }
-#else
-  if (impl_->stub_thread.joinable()) {
-    impl_->stub_thread.join();
-  }
-#endif
 }
 
 }  // namespace phc
-

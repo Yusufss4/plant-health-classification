@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "../src/app_runtime/live_pipeline.hpp"
+#include "../src/core/inference_result.hpp"
 
 #include <atomic>
 #include <thread>
@@ -46,7 +47,7 @@ class FakeCamera : public phc::ICamera {
 class FakeDisplay : public phc::IDisplay {
  public:
   bool Init(int, int) override { return true; }
-  bool Present(const phc::Frame& f) override {
+  bool Present(const phc::Frame& f, const phc::InferenceResult&) override {
     ++present_count_;
     last_w_ = f.width;
     last_h_ = f.height;

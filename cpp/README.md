@@ -4,10 +4,11 @@ This document describes how the C++ inference stack is structured, how it maps t
 
 Executable tools today:
 
-- **`infer_mobilenet`** — single-image inference (ORT forward pass).
-- **`evaluate_mobilenet`** — batch evaluation on `healthy/` / `diseased/` folders (metrics + timing).
+- **`phc_infer_mobilenet`** — single-image inference (ORT forward pass).
+- **`phc_evaluate_mobilenet`** — batch evaluation on `healthy/` / `diseased/` folders (metrics + timing).
+- **`live_infer_web`** (optional, `-DENABLE_LIBCAMERA=ON`) — live camera + inference + `preview.jpg` / `result.json` for a static browser UI.
 
-Shared preprocessing and ONNX Runtime wiring live in **`mobilenet_common`**.
+Shared preprocessing and ONNX Runtime wiring live under **`src/preprocess`**, **`src/inference_ort`**, and related modules.
 
 ---
 
@@ -40,7 +41,7 @@ flowchart LR
 |--------|------|----------------|
 | **Model artifact** | `checkpoints/mobilenet_v3.onnx` (from Python export) | Yes |
 | **Preprocess** | RGB → 224×224 bilinear, ImageNet normalize, NCHW | `mobilenet_common` |
-| **Inference** | ORT session, CPU, logits → argmax / metrics | `infer_mobilenet`, `evaluate_mobilenet` |
+| **Inference** | ORT session, CPU, logits → argmax / metrics | `phc_infer_mobilenet`, `phc_evaluate_mobilenet` |
 | **Camera / ISP** | Acquire frames from Camera Module 3 | **Not in tree yet** — integrate via libcamera or capture-to-file then reuse `ImageToNchw` |
 | **Tests** | Unit tests for math helpers; optional integration tests with ORT | **To add** (see §5) |
 
@@ -91,13 +92,13 @@ Use this to iterate **without** the Pi: same ONNX file, same preprocessing contr
 
    ```bash
    export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
-   ./build/infer_mobilenet ../checkpoints/mobilenet_v3.onnx /path/to/leaf.jpg
+   ./build/phc_infer_mobilenet ../checkpoints/mobilenet_v3.onnx /path/to/leaf.jpg
    ```
 
 5. **Batch evaluation** (same layout as Python `data/test/healthy` and `data/test/diseased`):
 
    ```bash
-   ./build/evaluate_mobilenet ../checkpoints/mobilenet_v3.onnx ../data/test
+   ./build/phc_evaluate_mobilenet ../checkpoints/mobilenet_v3.onnx ../data/test
    ```
 
 6. **Strict parity vs Python** (same float tensor, bypasses resize differences between stacks):
@@ -156,7 +157,7 @@ bash scripts/download_onnxruntime.sh linux-aarch64
 export ONNXRUNTIME_ROOT="$(pwd)/third_party/onnxruntime/onnxruntime-linux-aarch64-1.17.3"
 cd cpp && cmake -B build -S . && cmake --build build
 export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
-./build/infer_mobilenet ../checkpoints/mobilenet_v3.onnx /path/to/leaf.jpg
+./build/phc_infer_mobilenet ../checkpoints/mobilenet_v3.onnx /path/to/leaf.jpg
 ```
 
 ---
@@ -167,13 +168,57 @@ Build and run with the **same ONNX Runtime major version** at link time and runt
 
 ---
 
-## 8. File map (current)
+## 8. Web live preview (headless Pi, file artifacts)
+
+**`live_infer_web`** runs the live camera pipeline and writes JPEG + JSON for [`web/live/index.html`](../web/live/index.html).
+
+**Build** (needs libcamera):
+
+```bash
+cmake -B build -S . -DENABLE_LIBCAMERA=ON
+cmake --build build
+```
+
+**Run** on the Pi (writes into the directory you choose):
+
+```bash
+export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
+./build/live_infer_web /path/to/mobilenet_v3.onnx /var/lib/phc/live
+```
+
+**Artifacts** (atomic publish: JPEG first, then JSON):
+
+| File | Content |
+|------|---------|
+| `preview.jpg` | RGB camera preview (JPEG) |
+| `result.json` | `timestamp_ns`, `label`, `label_name`, `confidence`, `logits`, `probabilities` |
+
+Copy [`web/live/index.html`](../web/live/index.html) into that same directory (or serve a tree that contains both the HTML and the two files).
+
+**Serve** with any static file server; examples:
+
+```bash
+# Python (bind all interfaces — use only on a trusted LAN)
+python3 -m http.server 8080 --bind 0.0.0.0 --directory /var/lib/phc/live
+```
+
+```bash
+# darkhttpd: darkhttpd /var/lib/phc/live --port 8080
+```
+
+For nginx, set `root` to the artifact directory and ensure `preview.jpg` and `result.json` are readable. Prefer firewall rules or binding to `127.0.0.1` plus SSH port-forwarding if the network is not trusted.
+
+---
+
+## 9. File map (current)
 
 | File | Purpose |
 |------|---------|
-| `mobilenet_common.hpp` / `.cpp` | Preprocess, ORT run, console output helpers |
-| `infer_mobilenet.cpp` | CLI: model + image or `--tensor-bin` |
-| `evaluate_mobilenet.cpp` | CLI: model + test folder, metrics |
-| `CMakeLists.txt` | ORT discovery, stb_image download, binaries |
+| `src/mobilenet/` … | Preprocess, ORT run, console output helpers |
+| `tools/infer_mobilenet.cpp` | CLI: model + image or `--tensor-bin` (builds `phc_infer_mobilenet`) |
+| `tools/evaluate_mobilenet.cpp` | CLI: model + test folder, metrics (builds `phc_evaluate_mobilenet`) |
+| `src/display_file/file_artifact_display.*` | `IDisplay` writing `preview.jpg` + `result.json` |
+| `apps/live_infer_web/main.cpp` | Live pipeline + file artifacts (requires libcamera) |
+| `CMakeLists.txt` | ORT discovery, stb_image / stb_image_write download, binaries |
 
-Future work for your roadmap: **camera capture module**, **toolchain file** for cross-builds, **test/** tree + test framework.
+Future work for your roadmap: **toolchain file** for cross-builds, expanded **test/** tree.

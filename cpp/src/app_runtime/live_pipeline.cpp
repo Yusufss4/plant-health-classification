@@ -67,7 +67,7 @@ void LivePipeline::WorkerLoop() {
           // Keep last result.
         }
       }
-      (void)display_.Present(*frame);
+      (void)display_.Present(*frame, latest_result_);
     }
   }
 }

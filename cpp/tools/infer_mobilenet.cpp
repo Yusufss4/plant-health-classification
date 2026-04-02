@@ -6,8 +6,8 @@
  *   infer_mobilenet <model.onnx> --tensor-bin <float32_nchw_1x3x224x224.bin>
  */
 
-#include "src/inference_ort/ort_engine.hpp"
-#include "src/preprocess/mobilenet_preprocess.hpp"
+#include "inference_ort/ort_engine.hpp"
+#include "preprocess/mobilenet_preprocess.hpp"
 
 #include <cstring>
 #include <iostream>
@@ -46,3 +46,4 @@ int main(int argc, char** argv) {
   }
   return 0;
 }
+
