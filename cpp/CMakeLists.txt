@@ -52,7 +52,7 @@ add_library(phc_inference_ort STATIC
 )
 target_include_directories(phc_inference_ort PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/src"
-  "${ORT_ROOT}/include"
+  SYSTEM "${ORT_ROOT}/include"
 )
 target_link_directories(phc_inference_ort PUBLIC "${ORT_ROOT}/lib")
 target_link_libraries(phc_inference_ort PUBLIC onnxruntime)
@@ -91,13 +91,13 @@ function(link_ort_rpath target_name)
 endfunction()
 
 add_executable(phc_infer_mobilenet tools/infer_mobilenet.cpp)
-target_include_directories(phc_infer_mobilenet PRIVATE "${ORT_ROOT}/include")
+target_include_directories(phc_infer_mobilenet PRIVATE SYSTEM "${ORT_ROOT}/include")
 target_link_directories(phc_infer_mobilenet PRIVATE "${ORT_ROOT}/lib")
 target_link_libraries(phc_infer_mobilenet PRIVATE phc_preprocess phc_inference_ort onnxruntime)
 link_ort_rpath(phc_infer_mobilenet)
 
 add_executable(phc_evaluate_mobilenet tools/evaluate_mobilenet.cpp)
-target_include_directories(phc_evaluate_mobilenet PRIVATE "${ORT_ROOT}/include")
+target_include_directories(phc_evaluate_mobilenet PRIVATE SYSTEM "${ORT_ROOT}/include")
 target_link_directories(phc_evaluate_mobilenet PRIVATE "${ORT_ROOT}/lib")
 target_link_libraries(phc_evaluate_mobilenet PRIVATE phc_preprocess phc_inference_ort onnxruntime)
 link_ort_rpath(phc_evaluate_mobilenet)
@@ -106,7 +106,10 @@ if(ENABLE_LIBCAMERA)
   add_executable(live_infer_web
     apps/live_infer_web/main.cpp
   )
-  target_include_directories(live_infer_web PRIVATE "${ORT_ROOT}/include" "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_include_directories(live_infer_web PRIVATE
+    SYSTEM "${ORT_ROOT}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
   target_link_libraries(live_infer_web PRIVATE
     phc_app_runtime
     phc_camera_libcamera
@@ -129,6 +132,17 @@ if(ENABLE_TESTS)
     GIT_TAG v3.6.0
   )
   FetchContent_MakeAvailable(catch2)
+
+  # Third-party: silence warnings in Catch2 sources (we cannot fix upstream).
+  foreach(_phc_catch_tgt Catch2 Catch2WithMain)
+    if(TARGET ${_phc_catch_tgt})
+      if(MSVC)
+        target_compile_options(${_phc_catch_tgt} PRIVATE /W0)
+      else()
+        target_compile_options(${_phc_catch_tgt} PRIVATE -w)
+      endif()
+    endif()
+  endforeach()
 
   set(PHC_TEST_SOURCES
     tests/test_preprocess.cpp

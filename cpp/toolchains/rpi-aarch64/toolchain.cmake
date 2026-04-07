@@ -29,7 +29,6 @@ set(_COMMON_WARNINGS
   -Wall
   -Wextra
   -Wpedantic
-  -Wshadow
   -Wconversion
   -Wsign-conversion
   -Wformat=2
