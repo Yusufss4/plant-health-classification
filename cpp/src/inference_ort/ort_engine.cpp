@@ -30,12 +30,14 @@ int Argmax(const std::vector<float>& v) {
   if (v.empty()) {
     return -1;
   }
-  return static_cast<int>(std::distance(v.begin(), std::max_element(v.begin(), v.end())));
+  return static_cast<int>(
+      std::distance(v.begin(), std::max_element(v.begin(), v.end())));
 }
 
 }  // namespace
 
-OrtInferenceEngine::OrtInferenceEngine(const std::string& model_path, const Options& options)
+OrtInferenceEngine::OrtInferenceEngine(const std::string& model_path,
+                                       const Options& options)
     : options_(options),
       env_(ORT_LOGGING_LEVEL_WARNING, "phc"),
       session_([&]() {
@@ -48,8 +50,10 @@ OrtInferenceEngine::OrtInferenceEngine(const std::string& model_path, const Opti
 OrtInferenceEngine::OrtInferenceEngine(const std::string& model_path)
     : OrtInferenceEngine(model_path, Options{}) {}
 
-InferenceResult OrtInferenceEngine::Run(const TensorF32& input_nchw, uint64_t timestamp_ns) {
-  if (input_nchw.n != 1 || input_nchw.c <= 0 || input_nchw.h <= 0 || input_nchw.w <= 0) {
+InferenceResult OrtInferenceEngine::Run(const TensorF32& input_nchw,
+                                        uint64_t timestamp_ns) {
+  if (input_nchw.n != 1 || input_nchw.c <= 0 || input_nchw.h <= 0 ||
+      input_nchw.w <= 0) {
     throw std::runtime_error("Bad input tensor shape");
   }
   const int64_t n = input_nchw.n;
@@ -62,13 +66,16 @@ InferenceResult OrtInferenceEngine::Run(const TensorF32& input_nchw, uint64_t ti
   auto input_name_holder = session_.GetInputNameAllocated(0, allocator);
   auto output_name_holder = session_.GetOutputNameAllocated(0, allocator);
 
-  Ort::MemoryInfo mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+  Ort::MemoryInfo mem =
+      Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
   Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
-      mem, const_cast<float*>(input_nchw.data.data()), input_nchw.data.size(), shape.data(), shape.size());
+      mem, const_cast<float*>(input_nchw.data.data()), input_nchw.data.size(),
+      shape.data(), shape.size());
 
   const char* in_names[] = {input_name_holder.get()};
   const char* out_names[] = {output_name_holder.get()};
-  auto outputs = session_.Run(Ort::RunOptions{nullptr}, in_names, &input_tensor, 1, out_names, 1);
+  auto outputs = session_.Run(Ort::RunOptions{nullptr}, in_names, &input_tensor,
+                              1, out_names, 1);
 
   float* out_data = outputs[0].GetTensorMutableData<float>();
   auto out_shape = outputs[0].GetTensorTypeAndShapeInfo().GetShape();
@@ -84,12 +91,15 @@ InferenceResult OrtInferenceEngine::Run(const TensorF32& input_nchw, uint64_t ti
   r.logits = logits;
   r.probabilities = Softmax(r.logits);
   r.label = Argmax(r.probabilities);
-  r.confidence = (r.label >= 0 && static_cast<size_t>(r.label) < r.probabilities.size()) ? r.probabilities[static_cast<size_t>(r.label)] : 0.0f;
-  if (r.label >= 0 && static_cast<size_t>(r.label) < options_.class_names.size()) {
+  r.confidence =
+      (r.label >= 0 && static_cast<size_t>(r.label) < r.probabilities.size())
+          ? r.probabilities[static_cast<size_t>(r.label)]
+          : 0.0f;
+  if (r.label >= 0 &&
+      static_cast<size_t>(r.label) < options_.class_names.size()) {
     r.label_name = options_.class_names[static_cast<size_t>(r.label)];
   }
   return r;
 }
 
 }  // namespace phc
-

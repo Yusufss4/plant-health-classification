@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../core/inference_result.hpp"
-#include "../preprocess/mobilenet_preprocess.hpp"
 #include "../inference_ort/ort_engine.hpp"
+#include "../preprocess/mobilenet_preprocess.hpp"
 #include "interfaces.hpp"
 
 #include <atomic>
@@ -19,7 +19,9 @@ struct LivePipelineConfig {
 
 class LivePipeline {
  public:
-  LivePipeline(ICamera& camera, IDisplay& display, MobilenetPreprocessor preprocess, OrtInferenceEngine engine, LivePipelineConfig cfg);
+  LivePipeline(ICamera& camera, IDisplay& display,
+               MobilenetPreprocessor preprocess, OrtInferenceEngine engine,
+               LivePipelineConfig cfg);
   ~LivePipeline();
 
   bool Start();
@@ -44,4 +46,3 @@ class LivePipeline {
 };
 
 }  // namespace phc
-

@@ -16,17 +16,24 @@ namespace {
 constexpr float kMean[3] = {0.485f, 0.456f, 0.406f};
 constexpr float kStd[3] = {0.229f, 0.224f, 0.225f};
 
-inline float Lerp(float a, float b, float t) { return a + (b - a) * t; }
+inline float Lerp(float a, float b, float t) {
+  return a + (b - a) * t;
+}
 
-void ResizeBilinearRgb(const unsigned char* src, int sw, int sh, unsigned char* dst, int dw, int dh) {
+void ResizeBilinearRgb(const unsigned char* src, int sw, int sh,
+                       unsigned char* dst, int dw, int dh) {
   for (int y = 0; y < dh; ++y) {
-    float sy = (static_cast<float>(y) + 0.5f) * static_cast<float>(sh) / static_cast<float>(dh) - 0.5f;
+    float sy = (static_cast<float>(y) + 0.5f) * static_cast<float>(sh) /
+                   static_cast<float>(dh) -
+               0.5f;
     int y0 = static_cast<int>(std::floor(sy));
     y0 = std::clamp(y0, 0, sh - 1);
     int y1 = std::min(y0 + 1, sh - 1);
     float fy = sy - static_cast<float>(y0);
     for (int x = 0; x < dw; ++x) {
-      float sx = (static_cast<float>(x) + 0.5f) * static_cast<float>(sw) / static_cast<float>(dw) - 0.5f;
+      float sx = (static_cast<float>(x) + 0.5f) * static_cast<float>(sw) /
+                     static_cast<float>(dw) -
+                 0.5f;
       int x0 = static_cast<int>(std::floor(sx));
       x0 = std::clamp(x0, 0, sw - 1);
       int x1 = std::min(x0 + 1, sw - 1);
@@ -45,13 +52,15 @@ void ResizeBilinearRgb(const unsigned char* src, int sw, int sh, unsigned char* 
   }
 }
 
-void PreprocessRgbToNchw(const unsigned char* rgb224, std::vector<float>& nchw) {
+void PreprocessRgbToNchw(const unsigned char* rgb224,
+                         std::vector<float>& nchw) {
   constexpr size_t n = 1 * 3 * kInputSize * kInputSize;
   nchw.resize(n);
   for (int c = 0; c < 3; ++c) {
     for (int y = 0; y < kInputSize; ++y) {
       for (int x = 0; x < kInputSize; ++x) {
-        float px = static_cast<float>(rgb224[(y * kInputSize + x) * 3 + c]) / 255.0f;
+        float px =
+            static_cast<float>(rgb224[(y * kInputSize + x) * 3 + c]) / 255.0f;
         px = (px - kMean[c]) / kStd[c];
         nchw[c * kInputSize * kInputSize + y * kInputSize + x] = px;
       }
@@ -65,7 +74,8 @@ bool ImageToNchw(const std::string& path, std::vector<float>& out) {
   int w = 0, h = 0, comp = 0;
   unsigned char* data = stbi_load(path.c_str(), &w, &h, &comp, 3);
   if (!data) {
-    std::cerr << "stbi_load failed: " << path << " — " << stbi_failure_reason() << "\n";
+    std::cerr << "stbi_load failed: " << path << " — " << stbi_failure_reason()
+              << "\n";
     return false;
   }
   std::vector<unsigned char> resized(3 * kInputSize * kInputSize);
@@ -89,23 +99,28 @@ bool LoadTensorBin(const std::string& path, std::vector<float>& out) {
     return false;
   }
   out.resize(1 * 3 * kInputSize * kInputSize);
-  f.read(reinterpret_cast<char*>(out.data()), static_cast<std::streamsize>(bytes));
+  f.read(reinterpret_cast<char*>(out.data()),
+         static_cast<std::streamsize>(bytes));
   return static_cast<bool>(f);
 }
 
-std::vector<float> RunInference(Ort::Session& session, const std::vector<float>& nchw) {
+std::vector<float> RunInference(Ort::Session& session,
+                                const std::vector<float>& nchw) {
   Ort::AllocatorWithDefaultOptions allocator;
   auto input_name_holder = session.GetInputNameAllocated(0, allocator);
   auto output_name_holder = session.GetOutputNameAllocated(0, allocator);
 
   std::array<int64_t, 4> shape = {1, 3, kInputSize, kInputSize};
-  Ort::MemoryInfo mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-  Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
-      mem, const_cast<float*>(nchw.data()), nchw.size(), shape.data(), shape.size());
+  Ort::MemoryInfo mem =
+      Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+  Ort::Value input_tensor =
+      Ort::Value::CreateTensor<float>(mem, const_cast<float*>(nchw.data()),
+                                      nchw.size(), shape.data(), shape.size());
 
   const char* in_names[] = {input_name_holder.get()};
   const char* out_names[] = {output_name_holder.get()};
-  auto outputs = session.Run(Ort::RunOptions{nullptr}, in_names, &input_tensor, 1, out_names, 1);
+  auto outputs = session.Run(Ort::RunOptions{nullptr}, in_names, &input_tensor,
+                             1, out_names, 1);
 
   float* out_data = outputs[0].GetTensorMutableData<float>();
   auto out_shape = outputs[0].GetTensorTypeAndShapeInfo().GetShape();
@@ -143,4 +158,3 @@ void PrintLogitsLine(const float* logits, size_t n) {
 }
 
 }  // namespace mobilenet
-

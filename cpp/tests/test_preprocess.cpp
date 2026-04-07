@@ -23,8 +23,7 @@ TEST_CASE("MobilenetPreprocessor produces 1x3x224x224 tensor", "[preprocess]") {
   f.height = 2;
   f.stride_bytes = 2 * 3;
   f.data = {
-      255, 0, 0,   0, 255, 0,
-      0, 0, 255,   255, 255, 255,
+      255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255,
   };
 
   phc::TensorF32 t;
@@ -35,4 +34,3 @@ TEST_CASE("MobilenetPreprocessor produces 1x3x224x224 tensor", "[preprocess]") {
   REQUIRE(t.w == 224);
   REQUIRE(t.data.size() == static_cast<size_t>(1 * 3 * 224 * 224));
 }
-

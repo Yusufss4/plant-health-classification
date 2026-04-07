@@ -16,12 +16,17 @@ namespace {
 constexpr float kMean[3] = {0.485f, 0.456f, 0.406f};
 constexpr float kStd[3] = {0.229f, 0.224f, 0.225f};
 
-inline float Lerp(float a, float b, float t) { return a + (b - a) * t; }
+inline float Lerp(float a, float b, float t) {
+  return a + (b - a) * t;
+}
 
-void ResizeBilinearRgb(const uint8_t* src, int sw, int sh, int src_stride_bytes, uint8_t* dst, int dw, int dh) {
+void ResizeBilinearRgb(const uint8_t* src, int sw, int sh, int src_stride_bytes,
+                       uint8_t* dst, int dw, int dh) {
   // src assumed tightly packed RGB888 per row (stride may include padding).
   for (int y = 0; y < dh; ++y) {
-    const float sy = (static_cast<float>(y) + 0.5f) * static_cast<float>(sh) / static_cast<float>(dh) - 0.5f;
+    const float sy = (static_cast<float>(y) + 0.5f) * static_cast<float>(sh) /
+                         static_cast<float>(dh) -
+                     0.5f;
     int y0 = static_cast<int>(std::floor(sy));
     y0 = std::clamp(y0, 0, sh - 1);
     const int y1 = std::min(y0 + 1, sh - 1);
@@ -30,7 +35,9 @@ void ResizeBilinearRgb(const uint8_t* src, int sw, int sh, int src_stride_bytes,
     const uint8_t* row0 = src + y0 * src_stride_bytes;
     const uint8_t* row1 = src + y1 * src_stride_bytes;
     for (int x = 0; x < dw; ++x) {
-      const float sx = (static_cast<float>(x) + 0.5f) * static_cast<float>(sw) / static_cast<float>(dw) - 0.5f;
+      const float sx = (static_cast<float>(x) + 0.5f) * static_cast<float>(sw) /
+                           static_cast<float>(dw) -
+                       0.5f;
       int x0 = static_cast<int>(std::floor(sx));
       x0 = std::clamp(x0, 0, sw - 1);
       const int x1 = std::min(x0 + 1, sw - 1);
@@ -56,7 +63,8 @@ void ResizeBilinearRgb(const uint8_t* src, int sw, int sh, int src_stride_bytes,
 }
 
 void PreprocessRgbToNchw(const uint8_t* rgb224, std::vector<float>& nchw) {
-  constexpr size_t n = 1 * 3 * MobilenetPreprocessor::kInputSize * MobilenetPreprocessor::kInputSize;
+  constexpr size_t n = 1 * 3 * MobilenetPreprocessor::kInputSize *
+                       MobilenetPreprocessor::kInputSize;
   nchw.resize(n);
   const int s = MobilenetPreprocessor::kInputSize;
   for (int c = 0; c < 3; ++c) {
@@ -72,7 +80,8 @@ void PreprocessRgbToNchw(const uint8_t* rgb224, std::vector<float>& nchw) {
 
 }  // namespace
 
-bool MobilenetPreprocessor::Run(const Frame& frame_rgb888, TensorF32& out) const {
+bool MobilenetPreprocessor::Run(const Frame& frame_rgb888,
+                                TensorF32& out) const {
   if (frame_rgb888.format != PixelFormat::Rgb888) {
     return false;
   }
@@ -83,14 +92,11 @@ bool MobilenetPreprocessor::Run(const Frame& frame_rgb888, TensorF32& out) const
     return false;
   }
 
-  std::vector<uint8_t> resized(static_cast<size_t>(3 * kInputSize * kInputSize));
-  ResizeBilinearRgb(frame_rgb888.data.data(),
-                    frame_rgb888.width,
-                    frame_rgb888.height,
-                    frame_rgb888.stride_bytes,
-                    resized.data(),
-                    kInputSize,
-                    kInputSize);
+  std::vector<uint8_t> resized(
+      static_cast<size_t>(3 * kInputSize * kInputSize));
+  ResizeBilinearRgb(frame_rgb888.data.data(), frame_rgb888.width,
+                    frame_rgb888.height, frame_rgb888.stride_bytes,
+                    resized.data(), kInputSize, kInputSize);
 
   out.n = 1;
   out.c = 3;
@@ -100,11 +106,13 @@ bool MobilenetPreprocessor::Run(const Frame& frame_rgb888, TensorF32& out) const
   return true;
 }
 
-bool MobilenetPreprocessor::ImageFileToTensorNchw(const std::string& path, TensorF32& out) const {
+bool MobilenetPreprocessor::ImageFileToTensorNchw(const std::string& path,
+                                                  TensorF32& out) const {
   int w = 0, h = 0, comp = 0;
   unsigned char* data = stbi_load(path.c_str(), &w, &h, &comp, 3);
   if (!data) {
-    std::cerr << "stbi_load failed: " << path << " — " << stbi_failure_reason() << "\n";
+    std::cerr << "stbi_load failed: " << path << " — " << stbi_failure_reason()
+              << "\n";
     return false;
   }
   Frame f;
@@ -117,7 +125,8 @@ bool MobilenetPreprocessor::ImageFileToTensorNchw(const std::string& path, Tenso
   return Run(f, out);
 }
 
-bool MobilenetPreprocessor::LoadTensorBin(const std::string& path, TensorF32& out) const {
+bool MobilenetPreprocessor::LoadTensorBin(const std::string& path,
+                                          TensorF32& out) const {
   std::ifstream f(path, std::ios::binary | std::ios::ate);
   if (!f) {
     std::cerr << "Cannot open " << path << "\n";
@@ -135,9 +144,9 @@ bool MobilenetPreprocessor::LoadTensorBin(const std::string& path, TensorF32& ou
   out.h = kInputSize;
   out.w = kInputSize;
   out.data.resize(1 * 3 * kInputSize * kInputSize);
-  f.read(reinterpret_cast<char*>(out.data.data()), static_cast<std::streamsize>(bytes));
+  f.read(reinterpret_cast<char*>(out.data.data()),
+         static_cast<std::streamsize>(bytes));
   return static_cast<bool>(f);
 }
 
 }  // namespace phc
-

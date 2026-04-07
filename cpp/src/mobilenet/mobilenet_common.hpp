@@ -16,9 +16,9 @@ bool ImageToNchw(const std::string& path, std::vector<float>& out);
 bool LoadTensorBin(const std::string& path, std::vector<float>& out);
 
 /** Run ONNX session; input must be 1×3×224×224. Returns logits (length = num classes). */
-std::vector<float> RunInference(Ort::Session& session, const std::vector<float>& nchw);
+std::vector<float> RunInference(Ort::Session& session,
+                                const std::vector<float>& nchw);
 
 void PrintLogitsLine(const float* logits, size_t n);
 
 }  // namespace mobilenet
-

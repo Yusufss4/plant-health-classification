@@ -29,8 +29,8 @@ int main(int argc, char** argv) {
       return 1;
     }
   } else {
-    std::cerr << "Usage:\n  " << argv[0]
-              << " <model.onnx> <image.jpg>\n  " << argv[0]
+    std::cerr << "Usage:\n  " << argv[0] << " <model.onnx> <image.jpg>\n  "
+              << argv[0]
               << " <model.onnx> --tensor-bin <preprocessed_float32_nchw.bin>\n";
     return 1;
   }
@@ -39,11 +39,13 @@ int main(int argc, char** argv) {
   const phc::InferenceResult r = engine.Run(input);
   if (r.logits.size() >= 2 && r.probabilities.size() >= 2) {
     std::cout << "logits: [" << r.logits[0] << ", " << r.logits[1] << "]\n";
-    std::cout << "prob:   [" << r.probabilities[0] << ", " << r.probabilities[1] << "]\n";
-    std::cout << "class:  " << r.label << " (" << (r.label_name.empty() ? "?" : r.label_name) << ")\n";
+    std::cout << "prob:   [" << r.probabilities[0] << ", " << r.probabilities[1]
+              << "]\n";
+    std::cout << "class:  " << r.label << " ("
+              << (r.label_name.empty() ? "?" : r.label_name) << ")\n";
   } else {
-    std::cout << "class:  " << r.label << " (" << (r.label_name.empty() ? "?" : r.label_name) << ")\n";
+    std::cout << "class:  " << r.label << " ("
+              << (r.label_name.empty() ? "?" : r.label_name) << ")\n";
   }
   return 0;
 }
-

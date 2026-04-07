@@ -31,4 +31,3 @@ class OrtInferenceEngine {
 };
 
 }  // namespace phc
-

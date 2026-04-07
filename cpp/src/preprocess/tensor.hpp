@@ -15,4 +15,3 @@ struct TensorF32 {
 };
 
 }  // namespace phc
-

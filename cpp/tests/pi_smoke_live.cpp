@@ -6,19 +6,20 @@
 #include "inference_ort/ort_engine.hpp"
 #include "preprocess/mobilenet_preprocess.hpp"
 
+#include <unistd.h>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <thread>
-#include <unistd.h>
 
 TEST_CASE("Pi smoke: start live pipeline briefly", "[pi][smoke]") {
   // Raspberry Pi with camera. Requires PHC_MODEL_PATH. Writes artifacts to a temp dir (no display).
-  const std::string model_path = std::getenv("PHC_MODEL_PATH") ? std::getenv("PHC_MODEL_PATH") : "";
+  const std::string model_path =
+      std::getenv("PHC_MODEL_PATH") ? std::getenv("PHC_MODEL_PATH") : "";
   REQUIRE_FALSE(model_path.empty());
 
-  const std::filesystem::path out =
-      std::filesystem::temp_directory_path() / ("phc_smoke_" + std::to_string(::getpid()));
+  const std::filesystem::path out = std::filesystem::temp_directory_path() /
+                                    ("phc_smoke_" + std::to_string(::getpid()));
   std::filesystem::create_directories(out);
 
   phc::LibcameraCamera cam(phc::LibcameraConfig{});

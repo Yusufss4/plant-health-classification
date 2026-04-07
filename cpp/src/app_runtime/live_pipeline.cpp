@@ -4,10 +4,18 @@
 
 namespace phc {
 
-LivePipeline::LivePipeline(ICamera& camera, IDisplay& display, MobilenetPreprocessor preprocess, OrtInferenceEngine engine, LivePipelineConfig cfg)
-    : camera_(camera), display_(display), preprocess_(std::move(preprocess)), engine_(std::move(engine)), cfg_(cfg) {}
+LivePipeline::LivePipeline(ICamera& camera, IDisplay& display,
+                           MobilenetPreprocessor preprocess,
+                           OrtInferenceEngine engine, LivePipelineConfig cfg)
+    : camera_(camera),
+      display_(display),
+      preprocess_(std::move(preprocess)),
+      engine_(std::move(engine)),
+      cfg_(cfg) {}
 
-LivePipeline::~LivePipeline() { Stop(); }
+LivePipeline::~LivePipeline() {
+  Stop();
+}
 
 bool LivePipeline::Start() {
   if (running_.exchange(true)) {
@@ -73,4 +81,3 @@ void LivePipeline::WorkerLoop() {
 }
 
 }  // namespace phc
-

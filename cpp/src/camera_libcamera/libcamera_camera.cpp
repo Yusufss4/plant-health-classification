@@ -34,12 +34,15 @@ struct LibcameraCamera::Impl {
 
   uint64_t NowNs() const {
     using Clock = std::chrono::steady_clock;
-    const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count();
+    const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        Clock::now().time_since_epoch())
+                        .count();
     return static_cast<uint64_t>(ns);
   }
 };
 
-LibcameraCamera::LibcameraCamera(LibcameraConfig cfg) : cfg_(cfg), impl_(new Impl()) {}
+LibcameraCamera::LibcameraCamera(LibcameraConfig cfg)
+    : cfg_(cfg), impl_(new Impl()) {}
 
 LibcameraCamera::~LibcameraCamera() {
   Stop();
@@ -77,7 +80,8 @@ bool LibcameraCamera::Start(FrameCallback cb) {
   }
 
   // Configure single stream (viewfinder).
-  impl_->config = impl_->camera->generateConfiguration({libcamera::StreamRole::Viewfinder});
+  impl_->config =
+      impl_->camera->generateConfiguration({libcamera::StreamRole::Viewfinder});
   if (!impl_->config || impl_->config->empty()) {
     std::cerr << "generateConfiguration failed\n";
     impl_->camera->release();
@@ -110,7 +114,8 @@ bool LibcameraCamera::Start(FrameCallback cb) {
   }
 
   impl_->stream = sc.stream();
-  impl_->allocator = std::make_unique<libcamera::FrameBufferAllocator>(impl_->camera);
+  impl_->allocator =
+      std::make_unique<libcamera::FrameBufferAllocator>(impl_->camera);
   if (impl_->allocator->allocate(impl_->stream) < 0) {
     std::cerr << "FrameBufferAllocator allocate failed\n";
     impl_->camera->release();
@@ -162,7 +167,8 @@ bool LibcameraCamera::Start(FrameCallback cb) {
     }
     f.timestamp_ns = impl_->NowNs();
 
-    const size_t needed = static_cast<size_t>(f.height) * static_cast<size_t>(f.stride_bytes);
+    const size_t needed =
+        static_cast<size_t>(f.height) * static_cast<size_t>(f.stride_bytes);
     f.data.resize(needed);
     std::memcpy(f.data.data(), map, std::min(needed, length));
     ::munmap(map, length);

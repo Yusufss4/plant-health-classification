@@ -24,4 +24,3 @@ class IDisplay {
 };
 
 }  // namespace phc
-

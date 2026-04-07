@@ -13,9 +13,9 @@
 #include "inference_ort/ort_engine.hpp"
 #include "preprocess/mobilenet_preprocess.hpp"
 
+#include <cctype>
 #include <chrono>
 #include <cmath>
-#include <cctype>
 #include <cstdint>
 #include <filesystem>
 #include <iomanip>
@@ -45,7 +45,8 @@ std::vector<LabeledPath> CollectImages(const fs::path& test_root) {
   const fs::path healthy = test_root / "healthy";
   const fs::path diseased = test_root / "diseased";
   if (!fs::is_directory(healthy) || !fs::is_directory(diseased)) {
-    std::cerr << "Expected " << healthy << " and " << diseased << " directories.\n";
+    std::cerr << "Expected " << healthy << " and " << diseased
+              << " directories.\n";
     return out;
   }
   for (const auto& entry : fs::directory_iterator(healthy)) {
@@ -63,35 +64,52 @@ std::vector<LabeledPath> CollectImages(const fs::path& test_root) {
   return out;
 }
 
-void PrintMetrics(int64_t tn, int64_t fp, int64_t fn, int64_t tp, double total_sec, size_t n) {
+void PrintMetrics(int64_t tn, int64_t fp, int64_t fn, int64_t tp,
+                  double total_sec, size_t n) {
   const double n_d = static_cast<double>(n);
   const double acc = static_cast<double>(tp + tn) / n_d;
-  const double prec = (tp + fp) > 0 ? static_cast<double>(tp) / static_cast<double>(tp + fp) : 0.0;
-  const double rec = (tp + fn) > 0 ? static_cast<double>(tp) / static_cast<double>(tp + fn) : 0.0;
-  const double f1 = (prec + rec) > 1e-12 ? 2.0 * prec * rec / (prec + rec) : 0.0;
-  const double tnr = (tn + fp) > 0 ? static_cast<double>(tn) / static_cast<double>(tn + fp) : 0.0;  // specificity
-  const double tpr = rec;                                                                         // sensitivity
+  const double prec =
+      (tp + fp) > 0 ? static_cast<double>(tp) / static_cast<double>(tp + fp)
+                    : 0.0;
+  const double rec =
+      (tp + fn) > 0 ? static_cast<double>(tp) / static_cast<double>(tp + fn)
+                    : 0.0;
+  const double f1 =
+      (prec + rec) > 1e-12 ? 2.0 * prec * rec / (prec + rec) : 0.0;
+  const double tnr =
+      (tn + fp) > 0 ? static_cast<double>(tn) / static_cast<double>(tn + fp)
+                    : 0.0;  // specificity
+  const double tpr = rec;   // sensitivity
   const double bal_acc = 0.5 * (tpr + tnr);
 
   std::cout << std::fixed << std::setprecision(4);
-  std::cout << "\n============================================================\n";
+  std::cout
+      << "\n============================================================\n";
   std::cout << "EVALUATION RESULTS (ONNX / C++)\n";
   std::cout << "============================================================\n";
   std::cout << "\nOverall metrics:\n";
   std::cout << "  Accuracy:          " << acc << " (" << acc * 100.0 << "%)\n";
-  std::cout << "  Balanced accuracy: " << bal_acc << " (" << bal_acc * 100.0 << "%)\n";
-  std::cout << "  Precision (diseased): " << prec << " (" << prec * 100.0 << "%)\n";
-  std::cout << "  Recall (diseased):    " << rec << " (" << rec * 100.0 << "%)\n";
+  std::cout << "  Balanced accuracy: " << bal_acc << " (" << bal_acc * 100.0
+            << "%)\n";
+  std::cout << "  Precision (diseased): " << prec << " (" << prec * 100.0
+            << "%)\n";
+  std::cout << "  Recall (diseased):    " << rec << " (" << rec * 100.0
+            << "%)\n";
   std::cout << "  F1-score (diseased):  " << f1 << " (" << f1 * 100.0 << "%)\n";
-  std::cout << "  Specificity (healthy): " << tnr << " (" << tnr * 100.0 << "%)\n";
+  std::cout << "  Specificity (healthy): " << tnr << " (" << tnr * 100.0
+            << "%)\n";
 
   std::cout << "\nConfusion matrix (rows=actual, cols=predicted):\n";
   std::cout << "                  healthy  diseased\n";
-  std::cout << "  healthy    " << std::setw(8) << tn << std::setw(10) << fp << "\n";
-  std::cout << "  diseased   " << std::setw(8) << fn << std::setw(10) << tp << "\n";
-  std::cout << "\n  TN: " << tn << "  FP: " << fp << "  FN: " << fn << "  TP: " << tp << "\n";
+  std::cout << "  healthy    " << std::setw(8) << tn << std::setw(10) << fp
+            << "\n";
+  std::cout << "  diseased   " << std::setw(8) << fn << std::setw(10) << tp
+            << "\n";
+  std::cout << "\n  TN: " << tn << "  FP: " << fp << "  FN: " << fn
+            << "  TP: " << tp << "\n";
 
-  std::cout << "\nInference timing (load + preprocess + ORT, all " << n << " images):\n";
+  std::cout << "\nInference timing (load + preprocess + ORT, all " << n
+            << " images):\n";
   std::cout << "  Total:     " << std::setprecision(3) << total_sec << " s\n";
   std::cout << "  Avg/image: " << (total_sec * 1000.0 / n_d) << " ms\n";
   std::cout << "  Throughput:" << (n_d / total_sec) << " img/s\n";
@@ -102,8 +120,9 @@ void PrintMetrics(int64_t tn, int64_t fp, int64_t fn, int64_t tp, double total_s
 
 int main(int argc, char** argv) {
   if (argc < 2 || argc > 3) {
-    std::cerr << "Usage: " << argv[0] << " <model.onnx> [test_dir]\n"
-              << "  Default test_dir: data/test (relative to current directory)\n";
+    std::cerr
+        << "Usage: " << argv[0] << " <model.onnx> [test_dir]\n"
+        << "  Default test_dir: data/test (relative to current directory)\n";
     return 1;
   }
 
@@ -159,8 +178,7 @@ int main(int argc, char** argv) {
   }
 
   const auto t1 = std::chrono::high_resolution_clock::now();
-  const double total_sec =
-      std::chrono::duration<double>(t1 - t0).count();
+  const double total_sec = std::chrono::duration<double>(t1 - t0).count();
 
   const size_t n = static_cast<size_t>(tp + tn + fp + fn);
   if (n == 0) {
@@ -168,8 +186,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  std::cout << "Evaluated " << n << " images from " << fs::absolute(test_root) << "\n";
+  std::cout << "Evaluated " << n << " images from " << fs::absolute(test_root)
+            << "\n";
   PrintMetrics(tn, fp, fn, tp, total_sec, n);
   return 0;
 }
-

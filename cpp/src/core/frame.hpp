@@ -22,8 +22,9 @@ struct Frame {
   // For NV12: size = height * stride_bytes * 3/2 (Y then interleaved UV).
   std::vector<uint8_t> data;
 
-  bool empty() const { return data.empty() || width <= 0 || height <= 0 || stride_bytes <= 0; }
+  bool empty() const {
+    return data.empty() || width <= 0 || height <= 0 || stride_bytes <= 0;
+  }
 };
 
 }  // namespace phc
-

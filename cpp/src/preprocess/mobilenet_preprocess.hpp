@@ -27,4 +27,3 @@ class MobilenetPreprocessor {
 };
 
 }  // namespace phc
-

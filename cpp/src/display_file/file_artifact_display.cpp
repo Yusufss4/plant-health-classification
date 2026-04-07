@@ -5,11 +5,12 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+#include <fcntl.h>
+#include <unistd.h>
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
-#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -17,7 +18,6 @@
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <unistd.h>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -64,7 +64,8 @@ bool FsyncFile(const fs::path& p) {
   return true;
 }
 
-bool WriteJsonFile(const fs::path& tmp, const fs::path& final, const InferenceResult& r) {
+bool WriteJsonFile(const fs::path& tmp, const fs::path& final,
+                   const InferenceResult& r) {
   std::ostringstream oss;
   oss << '{';
   oss << "\"timestamp_ns\":" << r.timestamp_ns << ',';
@@ -108,7 +109,8 @@ bool WriteJsonFile(const fs::path& tmp, const fs::path& final, const InferenceRe
 
 }  // namespace
 
-FileArtifactDisplay::FileArtifactDisplay(FileArtifactDisplayConfig cfg) : cfg_(std::move(cfg)) {}
+FileArtifactDisplay::FileArtifactDisplay(FileArtifactDisplayConfig cfg)
+    : cfg_(std::move(cfg)) {}
 
 bool FileArtifactDisplay::Init(int width, int height) {
   (void)width;
@@ -117,21 +119,25 @@ bool FileArtifactDisplay::Init(int width, int height) {
   std::error_code ec;
   fs::create_directories(cfg_.output_dir, ec);
   if (ec) {
-    std::cerr << "FileArtifactDisplay: cannot create output_dir: " << cfg_.output_dir << " — " << ec.message() << "\n";
+    std::cerr << "FileArtifactDisplay: cannot create output_dir: "
+              << cfg_.output_dir << " — " << ec.message() << "\n";
     return false;
   }
   return true;
 }
 
-bool FileArtifactDisplay::Present(const Frame& rgb888, const InferenceResult& result) {
+bool FileArtifactDisplay::Present(const Frame& rgb888,
+                                  const InferenceResult& result) {
   if (rgb888.format != PixelFormat::Rgb888 || rgb888.empty()) {
     return false;
   }
 
   const auto now = std::chrono::steady_clock::now().time_since_epoch();
-  const int64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
+  const int64_t now_ns =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
   if (cfg_.min_publish_interval_ms > 0 && last_publish_ns_ != 0) {
-    const int64_t min_ns = static_cast<int64_t>(cfg_.min_publish_interval_ms) * 1000000LL;
+    const int64_t min_ns =
+        static_cast<int64_t>(cfg_.min_publish_interval_ms) * 1000000LL;
     if (now_ns - last_publish_ns_ < min_ns) {
       return true;
     }
@@ -152,13 +158,17 @@ bool FileArtifactDisplay::Present(const Frame& rgb888, const InferenceResult& re
   if (rgb888.stride_bytes != packed_stride) {
     packed.assign(static_cast<size_t>(packed_stride * h), 0);
     for (int y = 0; y < h; ++y) {
-      std::memcpy(packed.data() + static_cast<size_t>(y) * static_cast<size_t>(packed_stride),
-                  rgb888.data.data() + static_cast<size_t>(y) * static_cast<size_t>(rgb888.stride_bytes),
-                  static_cast<size_t>(packed_stride));
+      std::memcpy(
+          packed.data() +
+              static_cast<size_t>(y) * static_cast<size_t>(packed_stride),
+          rgb888.data.data() +
+              static_cast<size_t>(y) * static_cast<size_t>(rgb888.stride_bytes),
+          static_cast<size_t>(packed_stride));
     }
     pixels = packed.data();
   }
-  if (!stbi_write_jpg(image_tmp.string().c_str(), w, h, 3, static_cast<const void*>(pixels), q)) {
+  if (!stbi_write_jpg(image_tmp.string().c_str(), w, h, 3,
+                      static_cast<const void*>(pixels), q)) {
     return false;
   }
   if (!FsyncFile(image_tmp)) {

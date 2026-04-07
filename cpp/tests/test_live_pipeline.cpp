@@ -74,4 +74,3 @@ TEST_CASE("LivePipeline runs with fakes (no inference)", "[app_runtime]") {
   // This test focuses on compilation and fake interfaces; full runtime covered by Pi integration.
   SUCCEED();
 }
-

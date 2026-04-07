@@ -26,4 +26,3 @@ class LibcameraCamera final : public ICamera {
 };
 
 }  // namespace phc
-
