@@ -1,5 +1,6 @@
 #include "libcamera_camera.hpp"
 
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <iostream>
@@ -40,6 +41,63 @@ struct LibcameraCamera::Impl {
     return static_cast<uint64_t>(ns);
   }
 };
+
+void LibcameraCamera::OnRequestCompleted(libcamera::Request* request) {
+  if (!impl_ || !impl_->running) {
+    return;
+  }
+  if (request->status() == libcamera::Request::RequestCancelled) {
+    return;
+  }
+
+  const auto& bufs = request->buffers();
+  auto it = bufs.find(impl_->stream);
+  if (it == bufs.end()) {
+    request->reuse(libcamera::Request::ReuseBuffers);
+    impl_->camera->queueRequest(request);
+    return;
+  }
+  const libcamera::FrameBuffer* fb = it->second;
+  if (fb->planes().empty()) {
+    request->reuse(libcamera::Request::ReuseBuffers);
+    impl_->camera->queueRequest(request);
+    return;
+  }
+
+  // Plane 0 for RGB888.
+  const int fd = fb->planes()[0].fd.get();
+  const size_t length = fb->planes()[0].length;
+  void* map = ::mmap(nullptr, length, PROT_READ, MAP_SHARED, fd, 0);
+  if (map == MAP_FAILED) {
+    request->reuse(libcamera::Request::ReuseBuffers);
+    impl_->camera->queueRequest(request);
+    return;
+  }
+
+  Frame f;
+  f.format = PixelFormat::Rgb888;
+  f.width = static_cast<int>(impl_->config->at(0).size.width);
+  f.height = static_cast<int>(impl_->config->at(0).size.height);
+  // libcamera's stride is accessible via StreamConfiguration::stride (bytes per line)
+  f.stride_bytes = static_cast<int>(impl_->config->at(0).stride);
+  if (f.stride_bytes <= 0) {
+    f.stride_bytes = f.width * 3;
+  }
+  f.timestamp_ns = impl_->NowNs();
+
+  const size_t needed =
+      static_cast<size_t>(f.height) * static_cast<size_t>(f.stride_bytes);
+  f.data.resize(needed);
+  std::memcpy(f.data.data(), map, std::min(needed, length));
+  ::munmap(map, length);
+
+  if (impl_->cb) {
+    impl_->cb(f);
+  }
+
+  request->reuse(libcamera::Request::ReuseBuffers);
+  impl_->camera->queueRequest(request);
+}
 
 LibcameraCamera::LibcameraCamera(LibcameraConfig cfg)
     : cfg_(cfg), impl_(new Impl()) {}
@@ -124,62 +182,8 @@ bool LibcameraCamera::Start(FrameCallback cb) {
     return false;
   }
 
-  impl_->camera->requestCompleted.connect([this](libcamera::Request* request) {
-    if (!impl_ || !impl_->running) {
-      return;
-    }
-    if (request->status() == libcamera::Request::RequestCancelled) {
-      return;
-    }
-
-    const auto& bufs = request->buffers();
-    auto it = bufs.find(impl_->stream);
-    if (it == bufs.end()) {
-      request->reuse(libcamera::Request::ReuseBuffers);
-      impl_->camera->queueRequest(request);
-      return;
-    }
-    const libcamera::FrameBuffer* fb = it->second;
-    if (fb->planes().empty()) {
-      request->reuse(libcamera::Request::ReuseBuffers);
-      impl_->camera->queueRequest(request);
-      return;
-    }
-
-    // Plane 0 for RGB888.
-    const int fd = fb->planes()[0].fd.get();
-    const size_t length = fb->planes()[0].length;
-    void* map = ::mmap(nullptr, length, PROT_READ, MAP_SHARED, fd, 0);
-    if (map == MAP_FAILED) {
-      request->reuse(libcamera::Request::ReuseBuffers);
-      impl_->camera->queueRequest(request);
-      return;
-    }
-
-    Frame f;
-    f.format = PixelFormat::Rgb888;
-    f.width = static_cast<int>(impl_->config->at(0).size.width);
-    f.height = static_cast<int>(impl_->config->at(0).size.height);
-    // libcamera's stride is accessible via StreamConfiguration::stride (bytes per line)
-    f.stride_bytes = static_cast<int>(impl_->config->at(0).stride);
-    if (f.stride_bytes <= 0) {
-      f.stride_bytes = f.width * 3;
-    }
-    f.timestamp_ns = impl_->NowNs();
-
-    const size_t needed =
-        static_cast<size_t>(f.height) * static_cast<size_t>(f.stride_bytes);
-    f.data.resize(needed);
-    std::memcpy(f.data.data(), map, std::min(needed, length));
-    ::munmap(map, length);
-
-    if (impl_->cb) {
-      impl_->cb(f);
-    }
-
-    request->reuse(libcamera::Request::ReuseBuffers);
-    impl_->camera->queueRequest(request);
-  });
+  impl_->camera->requestCompleted.connect(this,
+                                          &LibcameraCamera::OnRequestCompleted);
 
   // Create requests for each allocated buffer.
   impl_->requests.clear();

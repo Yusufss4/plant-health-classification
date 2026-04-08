@@ -2,6 +2,10 @@
 
 #include "../app_runtime/interfaces.hpp"
 
+namespace libcamera {
+class Request;
+}  // namespace libcamera
+
 namespace phc {
 
 struct LibcameraConfig {
@@ -21,6 +25,7 @@ class LibcameraCamera final : public ICamera {
 
  private:
   struct Impl;
+  void OnRequestCompleted(libcamera::Request* request);
   LibcameraConfig cfg_;
   Impl* impl_ = nullptr;
 };

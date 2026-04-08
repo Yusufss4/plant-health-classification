@@ -6,11 +6,11 @@ namespace phc {
 
 LivePipeline::LivePipeline(ICamera& camera, IDisplay& display,
                            MobilenetPreprocessor preprocess,
-                           OrtInferenceEngine engine, LivePipelineConfig cfg)
+                           OrtInferenceEngine& engine, LivePipelineConfig cfg)
     : camera_(camera),
       display_(display),
       preprocess_(std::move(preprocess)),
-      engine_(std::move(engine)),
+      engine_(engine),
       cfg_(cfg) {}
 
 LivePipeline::~LivePipeline() {

@@ -20,7 +20,7 @@ struct LivePipelineConfig {
 class LivePipeline {
  public:
   LivePipeline(ICamera& camera, IDisplay& display,
-               MobilenetPreprocessor preprocess, OrtInferenceEngine engine,
+               MobilenetPreprocessor preprocess, OrtInferenceEngine& engine,
                LivePipelineConfig cfg);
   ~LivePipeline();
 
@@ -34,7 +34,7 @@ class LivePipeline {
   ICamera& camera_;
   IDisplay& display_;
   MobilenetPreprocessor preprocess_;
-  OrtInferenceEngine engine_;
+  OrtInferenceEngine& engine_;
   LivePipelineConfig cfg_;
 
   std::atomic<bool> running_{false};
