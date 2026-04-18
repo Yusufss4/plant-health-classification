@@ -4,10 +4,11 @@
 
 Deploying machine learning models **on the edge**—close to sensors and users rather than in a data center—matters when latency, privacy, connectivity, or power budgets rule out always-on cloud inference. A common pattern is to export a trained model to a portable format and run it with a lightweight runtime on a small single-board computer or microcontroller-class device.
 
-This work focuses on **edge deployment of a plant health classifier**: given a leaf image, the system predicts whether the plant appears **healthy** or **diseased**. The **motivation** is twofold:
+This work focuses on **edge deployment of a plant health classifier**: given a leaf image, the system predicts whether the plant appears **healthy** or **diseased**. The **motivation** includes:
 
 - **Engineering**: validate that a compact CNN (**MobileNet V3**) can run end-to-end on constrained hardware (**Raspberry Pi Zero 2 W**) with acceptable accuracy and measurable throughput.
-- **Learning**: understand the **role of quantization and INT8-oriented optimization** in that setting. Quantization reduces numeric precision (often from FP32 to INT8) to shrink model size and speed up CPU inference; the trade-off is potential accuracy loss. The repository supports **dynamic INT8 weight quantization** of the ONNX model as an optional next step; the results documented here establish an **FP32 ONNX baseline** on the Pi so that a future INT8 run can be compared directly for accuracy, latency, and throughput.
+- **Learning**: understand the **role of quantization and INT8-oriented optimization** in that setting. Quantization reduces numeric precision (often from FP32 to INT8) to shrink model size and speed up CPU inference; the trade-off is potential accuracy loss. Documented results establish an **FP32 ONNX baseline** on the Pi so a later **INT8** deployment can be compared on accuracy, latency, and throughput.
+- **Real-world validation**: models trained on curated leaf image collections still need to be tested **in the field**—**real leaves**, **real lighting**, and capture from a **physical camera** rather than only files from a dataset. That step reveals how well the classifier tolerates blur, exposure, angle, background clutter, and sensor noise, and it motivates iterating on capture setup and preprocessing before trusting the system in production.
 
 ---
 
@@ -26,34 +27,47 @@ This work focuses on **edge deployment of a plant health classifier**: given a l
 
 ### 2.2 Software stack
 
-- **Model**: **MobileNet V3** exported to **ONNX** (`mobilenet_v3.onnx`).
-- **Runtime**: **ONNX Runtime (ORT)** invoked from a **C++** evaluation binary (`phc_evaluate_mobilenet`), so performance reflects a realistic native deployment path rather than a Python-only loop.
-- **Pipeline**: **Load image → MobileNet-style preprocessing → ORT session run → argmax / metrics** over a labeled test folder.
+- **Model**: **MobileNet V3** exported to **ONNX** for deployment.
+- **Runtime**: **ONNX Runtime** driven from a **native (C++)** inference path so measurements reflect realistic embedded-style execution rather than an interpreted-only loop.
+- **Pipeline**: **Image in → MobileNet-style preprocessing → ONNX Runtime inference → class scores / label**.
+- **Camera-based UI**: a **web portal** on the device (or reachable on the local network) shows **camera view**, **live predictions**, **summary metrics**, and **throughput (e.g. FPS or images per second)**.
 
 ### 2.3 Application
 
-A **binary image classifier** for plant health: input is a file path (batch evaluation over a directory), output is per-image predictions and aggregate metrics (accuracy, balanced accuracy, precision/recall/F1 for the diseased class, specificity, confusion matrix). The same logical task is also evaluated on a **development machine** with **PyTorch + CUDA** for reference; numbers differ mainly because of hardware throughput, not because the task definition changes.
+In practice the app does one thing: from a picture of a leaf it guesses whether the plant looks **healthy** or **unhealthy**.
+
+For a **demo**, you open the **web page** on your phone or laptop (on the same Wi‑Fi as the device). You show **healthy** and **unhealthy** plants to the camera—or step through example images—and everyone can see the **label** the model picked and **how many frames per second** it is running.
 
 ---
 
 ## 3. Requirements of the system, software, and application
 
-### 3.1 Functional requirements
+### 3.1 Functional requirements (including architecture)
 
-- Load a **MobileNet V3 ONNX** model and run **single-image inference** with preprocessing consistent with training/export.
-- Evaluate on a **fixed labeled test set** (here: **8106** images under `./data/test`) and report **classification metrics** and a **confusion matrix**.
-- **Optional**: support an **INT8-quantized ONNX** variant (e.g. produced by `quantize_mobilenet_onnx.py`) to study quantization effects; this report’s Pi numbers are the **FP32** baseline.
+
+- Open a **web portal** and see **inference results** (predicted class and, where applicable, confidence).
+- See **performance at a glance**: **FPS** (or equivalent throughput) and, if useful, **per-frame or rolling latency**, updated as the system runs.
+- Run **single-image** or **stream/batch** inference through the same stack so lab tests and field-style runs share one pipeline.
+
+**Architecture (logical components)**
+
+| Layer | Responsibility |
+| --- | --- |
+| **Presentation** | Web UI (portal) for status, predictions, FPS, and optional history or session summary. |
+| **Application / API** | Serves the UI and exposes inference status and metrics to it (e.g. HTTP or WebSocket). |
+| **Inference** | Loads the **MobileNet V3 ONNX** graph, applies consistent preprocessing, runs **ONNX Runtime** on the device CPU. |
+| **Acquisition (optional path)** | Feeds frames from storage or from a **camera** into the preprocessor; same graph for file replay and live capture when implemented. |
+| **Quantization track** | Same topology with **INT8** weights for comparison against the **FP32** baseline—accuracy and speed measured under identical UI and metrics. |
+
+**Offline / validation path (for benchmarking)**
+
+- Ability to score a **fixed labeled test split** and report **classification metrics** (accuracy, balanced accuracy, precision/recall/F1 for the diseased class, specificity) and a **confusion matrix**, independent of the portal, for rigorous comparison between FP32 and INT8 builds.
 
 ### 3.2 Non-functional requirements
 
-- **Deployability**: run on **512 MB RAM** and a **quad-core A53** CPU without GPU.
-- **Reproducibility**: documented commands and paths so results can be re-run on the same dataset and model artifacts.
-- **Observability**: separate **accuracy** from **latency/throughput** (end-to-end time includes load, preprocess, and ORT).
-
-### 3.3 Environment and artifacts
-
-- **On device**: ONNX model under `./model/`, test data under `./data/test`, C++ binary e.g. `./bin/phc_evaluate_mobilenet`.
-- **For comparison**: PyTorch checkpoint `checkpoints/mobilenet_v3_best.pth`, `evaluate.py` with **CUDA** on a capable workstation (environment example: Ubuntu 24.04 LTS on **WSL2**, NVIDIA GPU — see §5.2).
+- **Deployability**: run on **512 MB RAM** and a **quad-core A53** CPU without a GPU on the edge device.
+- **Reproducibility**: evaluation procedures and hardware context are recorded so accuracy and throughput numbers remain comparable across model variants.
+- **Observability**: **accuracy** (from labeled runs) is separable from **latency / throughput** (portal and benchmarks); end-to-end timing includes load, preprocess, and runtime where applicable.
 
 ---
 
@@ -61,36 +75,32 @@ A **binary image classifier** for plant health: input is a file path (batch eval
 
 ### 4.1 Design rationale
 
-- **MobileNet V3** balances accuracy and parameter count (~1.5M parameters in the recorded checkpoint) for edge use.
-- **ONNX + ORT** gives a **deployment-oriented** graph and a runtime tuned for many backends; **C++** keeps the measurement closer to production embedding than a Python script alone.
-- **FP32 baseline first**, then **INT8** (dynamic weight quantization or other schemes) as a controlled experiment on **quantization effects**—smaller files, faster math on CPU, with accuracy tracked against this baseline.
+- **MobileNet V3** balances accuracy and a small parameter count (on the order of **1.5M** parameters) for edge use.
+- **ONNX + ONNX Runtime** provides a **deployment-oriented** graph and a runtime tuned for multiple backends; a **native** caller keeps measurements close to how the stack would ship in production.
+- **FP32 baseline first**, then **INT8** (or similar) as a controlled experiment: smaller artifacts and faster integer math on CPU, with accuracy tracked against the same test protocol.
+- **Web portal** as the default way to **see results and FPS** aligns the system with operator expectations and simplifies demos and field checks.
 
 ### 4.2 Processing flow
 
-1. **Input**: image files from the test directory with known labels.
-2. **Preprocess**: resize/normalize as required by MobileNet (same convention as training export).
-3. **Inference**: ORT executes the ONNX graph on the CPU.
-4. **Output**: predicted class per image; aggregation yields global metrics and confusion counts.
+1. **Input**: image from file, batch folder, or (when available) camera frame.
+2. **Preprocess**: resize and normalize to match training/export conventions.
+3. **Inference**: ONNX Runtime executes the graph on the CPU.
+4. **Output**: class prediction (and optional scores); metrics feed the **portal** and any batch evaluator.
+5. **Presentation**: portal displays **prediction**, **FPS / throughput**, and optional aggregates.
 
 ### 4.3 Quantization (experimental track)
 
-The repo can generate a **dynamic INT8 weight-quantized** ONNX model (e.g. `mobilenet_v3_int8.onnx`). That path is the intended hook for comparing **INT8 optimization** against the FP32 ONNX run on identical data and binary, isolating **precision format** as the main variable.
+A reduced-precision build (e.g. **INT8** weight quantization) targets **smaller footprint and faster inference** on the same CPU, with **accuracy and FPS** compared to the **FP32** baseline under the same preprocessing and portal-facing metrics.
 
 ---
 
 ## 5. Experimental results
 
-Raw measurement logs and commands for this deployment are kept separately in [`rpi_zero_2w_mobilenet_onnx_cpp.md`](rpi_zero_2w_mobilenet_onnx_cpp.md).
+The tables below summarize **benchmark-style** runs: **edge** (Raspberry Pi Zero 2 W, ONNX Runtime via native code on **FP32** ONNX) and **development workstation** (PyTorch on **CUDA**). Sample counts refer to one held-out test split of **8106** images.
 
-### 5.1 Raspberry Pi Zero 2 W — ONNX Runtime (C++)
+### 5.1 Raspberry Pi Zero 2 W — ONNX Runtime (native), FP32
 
-**Command**
-
-`./bin/phc_evaluate_mobilenet ./model/mobilenet_v3.onnx ./data/test`
-
-**Quantization status (this run)**
-
-- **FP32** model (`mobilenet_v3.onnx`). INT8 was **not** used in these Pi numbers.
+**Quantization status for this run**: **FP32** ONNX only; **INT8** was not used for these figures.
 
 **Classification metrics (8106 images)**
 
@@ -112,7 +122,7 @@ Raw measurement logs and commands for this deployment are kept separately in [`r
 
 TN: 2215, FP: 7, FN: 7, TP: 5877
 
-**End-to-end performance** (load + preprocess + ORT, 8106 images)
+**End-to-end performance** (load + preprocess + runtime, 8106 images)
 
 | Measure | Value |
 | --- | --- |
@@ -120,13 +130,9 @@ TN: 2215, FP: 7, FN: 7, TP: 5877
 | Avg / image | 124.561 ms |
 | Throughput | 8.028 img/s |
 
-### 5.2 Local development machine — PyTorch (`evaluate.py`) reference
+### 5.2 Development workstation — PyTorch on GPU (reference)
 
-**Environment** (example from this repo’s WSL2 session): Ubuntu 24.04 LTS, Linux 6.6.x, WSL2; **CPU**: AMD Ryzen 7 5800H; **GPU**: NVIDIA GeForce RTX 3050 Laptop (4 GB VRAM, driver 595.97).
-
-**Command**
-
-`python evaluate.py --model mobilenet_v3` — checkpoint `checkpoints/mobilenet_v3_best.pth`, **CUDA**, 8106 test samples.
+**Environment** (example): Ubuntu 24.04 LTS on **WSL2**; **CPU**: AMD Ryzen 7 5800H; **GPU**: NVIDIA GeForce RTX 3050 Laptop (4 GB VRAM).
 
 **Metrics**
 
@@ -151,7 +157,7 @@ TN: 2215, FP: 7, FN: 7, TP: 5877
 
 TN: 2212, FP: 10, FN: 6, TP: 5878
 
-**Timing** (full eval loop)
+**Timing** (full evaluation loop)
 
 | Measure | Value |
 | --- | --- |
@@ -163,4 +169,14 @@ TN: 2212, FP: 10, FN: 6, TP: 5878
 
 ## 6. Brief conclusion
 
-The **Pi Zero 2 W + FP32 ONNX + ORT (C++)** setup meets strong **accuracy** on the held-out test set while exposing a **CPU-bound latency regime** (~125 ms/image end-to-end) suitable for comparing future **INT8-quantized** models on the same pipeline. The **motivation** for quantization experiments is clear: preserve accuracy while improving **size and speed** on edge CPUs; this document’s FP32 edge run is the reference point for that comparison.
+The **Pi Zero 2 W** configuration with **FP32 ONNX** and **ONNX Runtime** achieves **strong accuracy** on the held-out test split while operating in a **CPU-bound** regime near **8 images/s** end-to-end for that benchmark. That establishes a clear baseline for **INT8** and other optimizations. **Field trials with a real camera** remain important to validate robustness beyond curated dataset images.
+
+---
+
+## 7. TODO / future work
+
+- [ ] **Camera pipeline**: integrate a **live camera** path (capture, orientation, ROI) feeding the same preprocess → ONNX Runtime stack as file-based evaluation.
+- [ ] **Real-world leaf trials**: systematic tests **outdoors / in greenhouses** with **natural lighting** and varied distances, not only dataset-style images.
+- [ ] **Optimization**: pursue **INT8** (or similar) quantization, runtime flags, and threading tuned for Cortex-A53; re-measure **accuracy vs FPS** on device.
+- [ ] **Portal hardening**: ensure **FPS**, latency, and error states are visible and actionable when inference or the camera degrades.
+- [ ] **Calibration / thresholds**: optional score calibration or adjustable operating point for diseased vs healthy when moving from lab to field.
