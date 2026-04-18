@@ -1,4 +1,4 @@
-# Raspberry Pi Zero 2 W: MobileNetV3 (ONNX Runtime / C++) Results
+# Plant health (MobileNet v3): Raspberry Pi Zero 2 W (ONNX/ORT) + local PyTorch eval
 
 ## What we’re doing
 - Run **on-device inference** using a **MobileNetV3 ONNX** model with **ONNX Runtime (C++)**.
@@ -45,3 +45,39 @@ Includes **load + preprocess + ORT**:
 - **Avg / image**: 124.561 ms
 - **Throughput**: 8.028 img/s
 
+---
+
+## Local development machine (PyTorch `evaluate.py`)
+
+**Environment** (recorded from this repo’s WSL2 session): Ubuntu 24.04 LTS, **Linux 6.6.x**, **WSL2** on Windows host `DESKTOP-9HK97VT`.
+
+**Hardware**
+- **CPU**: AMD Ryzen 7 5800H (8 cores / 16 threads), x86_64 (guest sees Microsoft hypervisor)
+- **GPU**: NVIDIA GeForce RTX 3050 Laptop GPU, **4 GB** VRAM (driver **595.97**)
+
+**Command**
+`python evaluate.py --model mobilenet_v3` — loads `checkpoints/mobilenet_v3_best.pth`, **device: CUDA**, **8106** test samples.
+
+**Metrics**
+- **Accuracy**: 0.9980 (99.80%)
+- **Balanced accuracy**: 0.9972 (99.72%)
+- **Precision (diseased)**: 0.9983 (99.83%)
+- **Recall (diseased)**: 0.9990 (99.90%)
+- **F1 (diseased)**: 0.9986 (99.86%)
+- **Specificity (healthy)**: 0.9955 (99.55%)
+- **MCC**: 0.9950 — **ROC-AUC**: 1.0000
+- **Parameters (checkpoint)**: 1,519,906
+
+**Confusion matrix** (rows=actual, cols=predicted)
+
+|  | Pred: healthy | Pred: diseased |
+| --- | ---:| ---:|
+| **Actual: healthy** | 2212 | 10 |
+| **Actual: diseased** | 6 | 5878 |
+
+TN: 2212, FP: 10, FN: 6, TP: 5878
+
+**Timing** (full eval loop, 8106 samples)
+- **Total**: 10.7903 s
+- **Avg / image**: 1.331 ms
+- **Throughput**: 751.23 img/s
