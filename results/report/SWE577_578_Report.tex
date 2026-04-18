@@ -1,0 +1,336 @@
+\documentclass[a4paper,onesided,12pt]{report}
+\usepackage{styles/fbe_tez}
+\usepackage[utf8x]{inputenc} % To use Unicode (e.g. Turkish) characters
+\renewcommand{\labelenumi}{(\roman{enumi})}
+\usepackage{amsmath, amsthm, amssymb}
+ % Some extra symbols
+\usepackage[bottom]{footmisc}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage{longtable}
+\graphicspath{{figures/}} % Graphics will be here
+
+%\usepackage{xtab}
+\usepackage{multirow}
+\usepackage{subfigure}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+%\pagestyle{empty}
+%\includeonly{introduction} % To only process the given file
+
+\newtheorem{thm}{Theorem}[chapter]
+\newtheorem{prop}[thm]{Proposition}
+\newtheorem{lem}[thm]{Lemma}
+\newtheorem{cor}[thm]{Corollary}
+% COVER PAGE
+\title{Edge deployment: Plant health classification (MobileNet V3) on Raspberry Pi Zero 2 W}
+\author{Yusuf Savaş \\ Advisor: Fikret Gürgen}
+
+
+
+\begin{document}
+
+\pagenumbering{roman}
+\maketitle{}
+\tableofcontents
+
+\pagenumbering{arabic}
+
+\chapter{Introduction}
+
+Running machine learning on the edge means running models on small devices near where data is collected or where people use them, not only in big cloud servers. That helps when you care about fast responses, keeping data local, unreliable internet, or saving battery and power. A typical approach is to save a trained model in a portable format and run it with a small runtime on a compact computer or even a tiny microcontroller.
+
+This work focuses on \textbf{edge deployment of a plant health classifier}: given a leaf image, the system predicts whether the plant appears \textbf{healthy} or \textbf{diseased}. The \textbf{motivation} includes:
+
+\begin{itemize}
+\item \textbf{Engineering}: validate that a compact CNN (\textbf{MobileNet V3}) can run end-to-end on constrained hardware (\textbf{Raspberry Pi Zero 2 W}) with acceptable accuracy and measurable throughput.
+\item \textbf{Learning}: understand the \textbf{role of quantization and INT8-oriented optimization} in that setting. Quantization reduces numeric precision (often from FP32 to INT8) to shrink model size and speed up CPU inference; the trade-off is potential accuracy loss. Documented results establish an \textbf{FP32 ONNX baseline} on the Pi so a later \textbf{INT8} deployment can be compared on accuracy, latency, and throughput.
+\item \textbf{Native code vs.\ Python on the edge}: \textbf{C++} skips the Python interpreter and \textbf{GIL}, so it can run faster on a small CPU and use \textbf{512 MB RAM} more predictably. \textbf{ONNX Runtime} is often called from \textbf{native} code in production. \textbf{Python} is still a good fit for training and quick tests; \textbf{C++} is a common choice for \textbf{always-on} or \textbf{camera-stream} inference on tight hardware.
+\item \textbf{Real-world validation}: Even if a model does well on well-chosen leaf photos, we need to see how it works ``in real life'' with real leaves, real lighting, and photos taken with an actual camera. This testing checks if the model handles blur, bad lighting, background mess, and camera noise. It helps find problems before the system is used for real.
+\end{itemize}
+
+\chapter{Overview}
+
+\section{Hardware}
+
+\textbf{Raspberry Pi Zero 2 W} was chosen as a \textbf{low-cost, resource-constrained} edge node:
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Item} & \textbf{Detail} \\
+\hline
+CPU & Quad-core ARM Cortex-A53 ($\sim$1 GHz class) \\
+\hline
+RAM & 512 MB \\
+\hline
+Acceleration & inference is \textbf{CPU-bound} \\
+\hline
+Role & Baseline for always-on or field-style deployments \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\section{Software}
+
+\begin{itemize}
+\item \textbf{Model}: \textbf{MobileNet V3} exported to \textbf{ONNX} for deployment.
+\item \textbf{Runtime}: \textbf{ONNX Runtime} used from \textbf{C++}, not Python, so latency and FPS reflect the actual on-device stack instead of extra interpreter overhead.
+\item \textbf{Pipeline}: \textbf{Image in $\rightarrow$ MobileNet-style preprocessing $\rightarrow$ ONNX Runtime inference $\rightarrow$ class scores / label}.
+\item \textbf{Web UI}: a \textbf{web portal} on the device (or on the LAN) shows \textbf{camera view}, \textbf{live predictions}, \textbf{summary metrics}, and \textbf{throughput (e.g.\ FPS or images per second)}.
+\end{itemize}
+
+\section{Use}
+
+In practice the app does one thing: from a picture of a leaf it guesses whether the plant looks \textbf{healthy} or \textbf{unhealthy}.
+
+For a \textbf{demo}, you open the \textbf{web page} on your phone or laptop (on the same Wi-Fi as the device). You show \textbf{healthy} and \textbf{unhealthy} plants to the camera, or step through example images, and everyone can see the \textbf{label} the model picked and \textbf{how many frames per second} it is running.
+
+\section{Diagram}
+
+\IfFileExists{figures/system_architecture.pdf}{%
+  Figure~\ref{fig:system-architecture} shows the logical data flow.
+  \begin{figure}[h!]
+  \centering
+  \includegraphics[width=0.95\textwidth]{system_architecture.pdf}
+  \caption{System architecture: camera and files into preprocess, ONNX Runtime, web portal, and browser on the LAN.}
+  \label{fig:system-architecture}
+  \end{figure}
+}{%
+  \begin{quote}
+  \textit{Build the figure first: from \path{results/report/}, run \path{./render-mermaid.sh} (needs Node and \path{@mermaid-js/mermaid-cli}, or a global \path{mmdc}).}
+  \end{quote}
+}
+
+\chapter{Requirements}
+
+\section{Features}
+
+\begin{itemize}
+\item Open a \textbf{web portal} and see \textbf{inference results} (predicted class and, where applicable, confidence).
+\item See \textbf{performance at a glance}: \textbf{FPS} (or equivalent throughput) and, if useful, \textbf{per-frame or rolling latency}, updated as the system runs.
+\item Run \textbf{single-image} or \textbf{stream/batch} inference through the same stack so lab tests and field-style runs share one pipeline.
+\end{itemize}
+
+\textbf{Layers}
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|p{9cm}|}
+\hline
+\textbf{Layer} & \textbf{Role} \\
+\hline
+\textbf{Presentation} & Web UI (portal) for status, predictions, FPS, and optional history or session summary. \\
+\hline
+\textbf{Application / API} & Serves the UI and exposes inference status and metrics to it (e.g.\ HTTP or WebSocket). \\
+\hline
+\textbf{Inference} & Loads the \textbf{MobileNet V3 ONNX} graph, applies consistent preprocessing, runs \textbf{ONNX Runtime} on the device CPU. \\
+\hline
+\textbf{Acquisition (optional path)} & Feeds frames from storage or from a \textbf{camera} into the preprocessor; same graph for file replay and live capture when implemented. \\
+\hline
+\textbf{Quantization track} & Same topology with \textbf{INT8} weights for comparison against the \textbf{FP32} baseline, with accuracy and speed measured under identical UI and metrics. \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\textbf{Offline tests}
+
+\begin{itemize}
+\item Ability to score a \textbf{fixed labeled test split} and report \textbf{classification metrics} (accuracy, balanced accuracy, precision/recall/F1 for the diseased class, specificity) and a \textbf{confusion matrix}, independent of the portal, for rigorous comparison between FP32 and INT8 builds.
+\end{itemize}
+
+\section{Quality}
+
+\begin{itemize}
+\item \textbf{Deployability}: run on \textbf{512 MB RAM} and a \textbf{quad-core A53} CPU without a GPU on the edge device.
+\item \textbf{Reproducibility}: evaluation procedures and hardware context are recorded so accuracy and throughput numbers remain comparable across model variants.
+\item \textbf{Observability}: \textbf{accuracy} (from labeled runs) is separable from \textbf{latency / throughput} (portal and benchmarks); end-to-end timing includes load, preprocess, and runtime where applicable.
+\end{itemize}
+
+\chapter{Design}
+
+\section{Choices}
+
+\begin{itemize}
+\item \textbf{MobileNet V3} balances accuracy and a small parameter count (on the order of \textbf{1.5M} parameters) for edge use.
+\item \textbf{ONNX + ONNX Runtime} provides a \textbf{deployment-oriented} graph and a runtime tuned for multiple backends; a \textbf{native} caller keeps measurements close to how the stack would ship in production.
+\item \textbf{FP32 baseline first}, then \textbf{INT8} (or similar) as a controlled experiment: smaller artifacts and faster integer math on CPU, with accuracy tracked against the same test protocol.
+\item \textbf{Web portal} as the default way to \textbf{see results and FPS} aligns the system with operator expectations and simplifies demos and field checks.
+\end{itemize}
+
+\section{Pipeline}
+
+\begin{enumerate}
+\item \textbf{Input}: image from file, batch folder, or (when available) camera frame.
+\item \textbf{Preprocess}: resize and normalize to match training/export conventions.
+\item \textbf{Inference}: ONNX Runtime executes the graph on the CPU.
+\item \textbf{Output}: class prediction (and optional scores); metrics feed the \textbf{portal} and any batch evaluator.
+\item \textbf{Presentation}: portal displays \textbf{prediction}, \textbf{FPS / throughput}, and optional aggregates.
+\end{enumerate}
+
+\section{Quantization}
+
+A reduced-precision build (e.g.\ \textbf{INT8} weight quantization) targets \textbf{smaller footprint and faster inference} on the same CPU, with \textbf{accuracy and FPS} compared to the \textbf{FP32} baseline under the same preprocessing and portal-facing metrics.
+
+\chapter{Results}
+
+The tables below summarize \textbf{benchmark-style} runs: \textbf{edge} (Raspberry Pi Zero 2 W, ONNX Runtime via native code on \textbf{FP32} ONNX) and \textbf{development workstation} (PyTorch on \textbf{CUDA}). Sample counts refer to test split of \textbf{8106} images.
+
+\section{Pi Zero 2 W (FP32 ONNX)}
+
+These numbers use \textbf{FP32} ONNX only (\textbf{INT8} not used here).
+
+\textbf{Metrics (8106 test images)}
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Metric} & \textbf{Value} \\
+\hline
+Accuracy & 0.9983 (99.83\%) \\
+\hline
+Balanced accuracy & 0.9978 (99.78\%) \\
+\hline
+Precision (diseased) & 0.9988 (99.88\%) \\
+\hline
+Recall (diseased) & 0.9988 (99.88\%) \\
+\hline
+F1 (diseased) & 0.9988 (99.88\%) \\
+\hline
+Specificity (healthy) & 0.9968 (99.69\%) \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\textbf{Confusion matrix}
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|r|r|}
+\hline
+ & \textbf{Pred: healthy} & \textbf{Pred: diseased} \\
+\hline
+\textbf{Actual: healthy} & 2215 & 7 \\
+\hline
+\textbf{Actual: diseased} & 7 & 5877 \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+TN: 2215, FP: 7, FN: 7, TP: 5877
+
+\textbf{Speed} (load, preprocess, infer; 8106 images)
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Measure} & \textbf{Value} \\
+\hline
+Total time & 1009.689 s \\
+\hline
+Avg / image & 124.561 ms \\
+\hline
+Throughput & 8.028 img/s \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\section{Dev PC (GPU, reference)}
+
+\textbf{Setup} (example): Ubuntu 24.04 LTS on \textbf{WSL2}; \textbf{CPU}: AMD Ryzen 7 5800H; \textbf{GPU}: NVIDIA GeForce RTX 3050 Laptop (4 GB VRAM).
+
+\textbf{Test metrics}
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Metric} & \textbf{Value} \\
+\hline
+Accuracy & 0.9980 (99.80\%) \\
+\hline
+Balanced accuracy & 0.9972 (99.72\%) \\
+\hline
+Precision (diseased) & 0.9983 (99.83\%) \\
+\hline
+Recall (diseased) & 0.9990 (99.90\%) \\
+\hline
+F1 (diseased) & 0.9986 (99.86\%) \\
+\hline
+Specificity (healthy) & 0.9955 (99.55\%) \\
+\hline
+MCC & 0.9950 \\
+\hline
+ROC-AUC & 1.0000 \\
+\hline
+Parameters & 1,519,906 \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\textbf{Confusion matrix}
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|r|r|}
+\hline
+ & \textbf{Pred: healthy} & \textbf{Pred: diseased} \\
+\hline
+\textbf{Actual: healthy} & 2212 & 10 \\
+\hline
+\textbf{Actual: diseased} & 6 & 5878 \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+TN: 2212, FP: 10, FN: 6, TP: 5878
+
+\textbf{Speed} (full eval loop)
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Measure} & \textbf{Value} \\
+\hline
+Total & 10.7903 s \\
+\hline
+Avg / image & 1.331 ms \\
+\hline
+Throughput & 751.23 img/s \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\chapter{Conclusion}
+
+On the \textbf{Pi Zero 2 W}, \textbf{FP32 ONNX} with \textbf{ONNX Runtime} stays accurate on the held-out test set and runs at about \textbf{8 images/s} end-to-end on the CPU alone. That gives a solid starting point before trying \textbf{INT8} or other speedups. \textbf{Testing with a real camera in real conditions} still matters, because lab-style test images do not cover everything you see in the field.
+
+\chapter{Future work}
+
+\begin{itemize}
+\item \textbf{Camera}: add a \textbf{live camera} path that uses the same preprocess $\rightarrow$ ONNX Runtime stack as file-based evaluation.
+\item \textbf{Field tests}: systematic runs \textbf{outdoors / in greenhouses} with \textbf{natural lighting} and varied distances, not only dataset-style images.
+\item \textbf{Speedups}: \textbf{INT8} (or similar) quantization, runtime flags, and threading tuned for Cortex-A53; re-measure \textbf{accuracy vs FPS} on device; raise images per second.
+\item \textbf{UI}: make \textbf{FPS}, latency, and errors easy to see when inference or the camera degrades.
+\item \textbf{Calibration}: optional score calibration or thresholds for diseased vs healthy when moving from lab to field.
+\end{itemize}
+
+\bibliographystyle{styles/fbe_tez_v11}
+\bibliography{references}
+
+
+
+\end{document}

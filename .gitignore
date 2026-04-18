@@ -186,7 +186,7 @@ cython_debug/
 #  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
 #  and can be added to the global gitignore or merged into this file. However, if you prefer, 
 #  you could uncomment the following to ignore the entire vscode folder
-# .vscode/
+.vscode/
 
 # Ruff stuff:
 .ruff_cache/
@@ -206,6 +206,34 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+# LaTeX (results/report SWE template)
+results/report/*.aux
+results/report/*.bbl
+results/report/*.blg
+results/report/*.fdb_latexmk
+results/report/*.fls
+results/report/*.log
+results/report/*.out
+results/report/*.toc
+results/report/*.synctex.gz
+results/report/*.bcf
+results/report/*.run.xml
+results/report/*.lof
+results/report/*.lot
+results/report/*.synctex\(busy\)
+
+# Editor / OS noise
+*~
+\#*\#
+.#*
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# CMake / CTest generated (in-tree builds)
+cpp/Testing/
+
 # Project-specific
 data/
 checkpoints/
@@ -213,6 +241,5 @@ third_party/onnxruntime/
 cpp/build/
 *.pth
 *.png
-*.jpg   
+*.jpg
 *.jpeg
-.github/
