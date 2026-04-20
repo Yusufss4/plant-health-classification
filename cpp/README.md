@@ -40,7 +40,7 @@ flowchart LR
 | Layer | Role | Status in repo |
 |--------|------|----------------|
 | **Model artifact** | `checkpoints/mobilenet_v3.onnx` (from Python export) | Yes |
-| **Preprocess** | RGB → 224×224 bilinear, ImageNet normalize, NCHW | `mobilenet_common` |
+| **Preprocess** | RGB → 224×224 bilinear, ImageNet normalize, NCHW | `src/preprocess/mobilenet_preprocess.*` |
 | **Inference** | ORT session, CPU, logits → argmax / metrics | `phc_infer_mobilenet`, `phc_evaluate_mobilenet` |
 | **Camera / ISP** | Acquire frames from Camera Module 3 | **Not in tree yet** — integrate via libcamera or capture-to-file then reuse `ImageToNchw` |
 | **Tests** | Unit tests for math helpers; optional integration tests with ORT | **To add** (see §5) |
