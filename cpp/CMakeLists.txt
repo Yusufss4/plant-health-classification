@@ -20,31 +20,17 @@ if(NOT EXISTS "${ORT_ROOT}/include/onnxruntime_cxx_api.h")
   message(FATAL_ERROR "ONNXRUNTIME_ROOT=${ORT_ROOT} does not contain include/onnxruntime_cxx_api.h")
 endif()
 
-# stb_image (MIT) — single-header loader
-set(STB_IMAGE_H "${CMAKE_CURRENT_BINARY_DIR}/stb_image.h")
-if(NOT EXISTS "${STB_IMAGE_H}")
-  file(DOWNLOAD
-    "https://raw.githubusercontent.com/nothings/stb/master/stb_image.h"
-    "${STB_IMAGE_H}"
-    SHOW_PROGRESS
-  )
-endif()
-
-set(STB_IMAGE_WRITE_H "${CMAKE_CURRENT_BINARY_DIR}/stb_image_write.h")
-if(NOT EXISTS "${STB_IMAGE_WRITE_H}")
-  file(DOWNLOAD
-    "https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h"
-    "${STB_IMAGE_WRITE_H}"
-    SHOW_PROGRESS
-  )
-endif()
+# Vendored stb headers (MIT) for offline/reproducible builds.
+set(STB_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb")
+set(STB_IMAGE_H "${STB_INCLUDE_DIR}/stb_image.h")
+set(STB_IMAGE_WRITE_H "${STB_INCLUDE_DIR}/stb_image_write.h")
 
 add_library(phc_preprocess STATIC
   src/preprocess/mobilenet_preprocess.cpp
 )
 target_include_directories(phc_preprocess PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/src"
-  "${CMAKE_CURRENT_BINARY_DIR}"
+  "${STB_INCLUDE_DIR}"
 )
 
 add_library(phc_inference_ort STATIC
@@ -68,7 +54,7 @@ add_library(phc_display_file STATIC
 )
 target_include_directories(phc_display_file PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/src"
-  "${CMAKE_CURRENT_BINARY_DIR}"
+  "${STB_INCLUDE_DIR}"
 )
 
 if(ENABLE_LIBCAMERA)

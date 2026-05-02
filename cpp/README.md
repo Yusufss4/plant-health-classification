@@ -219,6 +219,7 @@ For nginx, set `root` to the artifact directory and ensure `preview.jpg` and `re
 | `tools/evaluate_mobilenet.cpp` | CLI: model + test folder, metrics (builds `phc_evaluate_mobilenet`) |
 | `src/display_file/file_artifact_display.*` | `IDisplay` writing `preview.jpg` + `result.json` |
 | `apps/live_infer_web/main.cpp` | Live pipeline + file artifacts (requires libcamera) |
-| `CMakeLists.txt` | ORT discovery, stb_image / stb_image_write download, binaries |
+| `CMakeLists.txt` | ORT discovery, vendored stb include wiring, binaries |
+| `third_party/stb/` | Vendored `stb_image.h` and `stb_image_write.h` headers |
 
 Future work for your roadmap: **toolchain file** for cross-builds, expanded **test/** tree.
