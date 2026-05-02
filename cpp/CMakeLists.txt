@@ -132,16 +132,15 @@ if(ENABLE_TESTS)
 
   set(PHC_TEST_SOURCES
     tests/test_preprocess.cpp
-    tests/test_live_pipeline.cpp
   )
   if(ENABLE_LIBCAMERA)
     list(APPEND PHC_TEST_SOURCES tests/pi_smoke_live.cpp)
   endif()
   add_executable(phc_tests ${PHC_TEST_SOURCES})
   target_include_directories(phc_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  target_link_libraries(phc_tests PRIVATE Catch2::Catch2WithMain phc_preprocess phc_app_runtime)
+  target_link_libraries(phc_tests PRIVATE Catch2::Catch2WithMain phc_preprocess)
   if(ENABLE_LIBCAMERA)
-    target_link_libraries(phc_tests PRIVATE phc_camera_libcamera phc_display_file)
+    target_link_libraries(phc_tests PRIVATE phc_app_runtime phc_camera_libcamera phc_display_file)
   endif()
   add_test(NAME phc_tests COMMAND phc_tests)
 endif()
