@@ -92,7 +92,7 @@ void LibcameraCamera::OnRequestCompleted(libcamera::Request* request) {
   ::munmap(map, length);
 
   if (impl_->cb) {
-    impl_->cb(f);
+    impl_->cb(std::move(f));
   }
 
   request->reuse(libcamera::Request::ReuseBuffers);

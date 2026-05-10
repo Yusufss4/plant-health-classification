@@ -11,7 +11,7 @@ struct InferenceResult;
 class ICamera {
  public:
   virtual ~ICamera() = default;
-  using FrameCallback = std::function<void(const Frame&)>;
+  using FrameCallback = std::function<void(Frame)>;
   virtual bool Start(FrameCallback cb) = 0;
   virtual void Stop() = 0;
 };

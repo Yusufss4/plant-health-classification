@@ -28,7 +28,7 @@ class LivePipeline {
   void Stop();
 
  private:
-  void OnFrame(const Frame& frame);
+  void OnFrame(Frame frame);
   void WorkerLoop();
 
   ICamera& camera_;

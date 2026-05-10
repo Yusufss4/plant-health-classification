@@ -28,7 +28,7 @@ bool LivePipeline::Start() {
 
   worker_ = std::thread([this]() { WorkerLoop(); });
 
-  const bool ok = camera_.Start([this](const Frame& f) { OnFrame(f); });
+  const bool ok = camera_.Start([this](Frame f) { OnFrame(std::move(f)); });
   if (!ok) {
     running_ = false;
     if (worker_.joinable()) {
@@ -49,9 +49,9 @@ void LivePipeline::Stop() {
   }
 }
 
-void LivePipeline::OnFrame(const Frame& frame) {
+void LivePipeline::OnFrame(Frame frame) {
   std::lock_guard<std::mutex> lk(mu_);
-  latest_frame_ = frame;  // copy; drop older frames to keep preview responsive
+  latest_frame_ = std::move(frame);  // move; drop older frames to keep preview responsive
 }
 
 void LivePipeline::WorkerLoop() {
