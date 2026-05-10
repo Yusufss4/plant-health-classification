@@ -1,0 +1,19 @@
+flowchart TB
+  CAM["Raspberry Pi Camera Module 3"]
+
+  subgraph RPI["Raspberry Pi Zero 2 W"]
+    direction TB
+    CSI["CSI / capture"]
+    PRE["Preprocess"]
+    ORT["ONNX Runtime / MobileNet V3 ONNX"]
+    WEB["Web server + portal"]
+    CSI --> PRE --> ORT --> WEB
+  end
+
+  CAM --> CSI
+
+  FILES[("Dataset / image files")]
+  FILES -->|"for development"| PRE
+
+  CLIENT["Browser (phone or laptop)"]
+  WEB -->|"local network"| CLIENT

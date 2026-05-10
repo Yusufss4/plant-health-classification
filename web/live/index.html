@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Plant health — live</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; background: #111; color: #eee; }
+    img { max-width: 100%; height: auto; border: 1px solid #444; }
+    .meta { margin-top: 0.5rem; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <h1>Live preview</h1>
+  <img id="preview" alt="camera preview" width="640" height="480" />
+  <div class="meta" id="status">Loading…</div>
+  <!--
+    Place this file in the same directory as the artifacts written by live_infer_web:
+      preview.jpg  — JPEG RGB preview
+      result.json  — { "timestamp_ns", "label", "label_name", "confidence", "logits", "probabilities" }
+  -->
+  <script>
+    async function poll() {
+      try {
+        const r = await fetch('result.json?' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) throw new Error('result.json HTTP ' + r.status);
+        const j = await r.json();
+        const img = document.getElementById('preview');
+        img.src = 'preview.jpg?t=' + (j.timestamp_ns != null ? j.timestamp_ns : Date.now());
+        const name = j.label_name != null && j.label_name !== '' ? j.label_name : ('class ' + j.label);
+        const conf = j.confidence != null ? j.confidence.toFixed(4) : '?';
+        document.getElementById('status').textContent = name + ' — confidence ' + conf;
+      } catch (e) {
+        document.getElementById('status').textContent = String(e);
+      }
+    }
+    setInterval(poll, 400);
+    poll();
+  </script>
+</body>
+</html>
