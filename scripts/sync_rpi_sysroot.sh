@@ -96,13 +96,15 @@ if [[ -n "${DRY_RUN}" ]]; then
 fi
 
 echo "==> Fixing absolute symlinks inside ${DEST}"
-# Convert absolute symlinks like /usr/lib/... to relative ones like ./usr/lib/...
+# Convert absolute symlinks (/usr/lib/...) to paths relative to each link's directory.
 cd "${DEST}"
 while IFS= read -r -d '' link; do
   target="$(readlink "${link}")"
   if [[ "${target}" == /* ]]; then
+    link_dir="$(dirname "${link}")"
+    new_target="$(realpath -m -s --relative-to="${link_dir}" ".${target}")"
     rm -f "${link}"
-    ln -s ".${target}" "${link}"
+    ln -s "${new_target}" "${link}"
   fi
 done < <(find . -type l -lname '/*' -print0)
 
