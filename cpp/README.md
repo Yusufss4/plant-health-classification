@@ -84,27 +84,34 @@ Use this to iterate **without** the Pi: same ONNX file, same preprocessing contr
 
    ```bash
    cd cpp
-   cmake -B build -S .
-   cmake --build build
+   cmake --preset local-release
+   cmake --build --preset local-release
    ```
 
 4. **Run inference:**
 
    ```bash
    export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
-   ./build/phc_infer_mobilenet ../checkpoints/mobilenet_v3.onnx /path/to/leaf.jpg
+   ./build/local-release/phc_infer_mobilenet ../checkpoints/mobilenet_v3.onnx /path/to/leaf.jpg
    ```
 
 5. **Batch evaluation** (same layout as Python `data/test/healthy` and `data/test/diseased`):
 
    ```bash
-   ./build/phc_evaluate_mobilenet ../checkpoints/mobilenet_v3.onnx ../data/test
+   ./build/local-release/phc_evaluate_mobilenet ../checkpoints/mobilenet_v3.onnx ../data/test
    ```
 
 6. **Strict parity vs Python** (same float tensor, bypasses resize differences between stacks):
 
    ```bash
    bash scripts/validate_cpp_inference.sh /path/to/image.jpg
+   ```
+
+   `validate_cpp_inference.sh` resolves `phc_infer_mobilenet` from `cpp/build/local-release` by default.
+   If your binary is elsewhere, pass an override:
+
+   ```bash
+   bash scripts/validate_cpp_inference.sh --build-dir cpp/build/rpi-zero2w-release /path/to/image.jpg
    ```
 
 This gives you **local functional tests** of the model + C++ stack before any cross-build.
