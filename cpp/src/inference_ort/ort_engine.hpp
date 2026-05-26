@@ -16,7 +16,8 @@ class OrtInferenceEngine {
   struct Options {
     int intra_op_threads = 1;
     int inter_op_threads = 1;
-    std::vector<std::string> class_names = {"healthy", "diseased"};
+    // Must match utils.data_loader.DEFAULT_CLASSES on the Python side.
+    std::vector<std::string> class_names = {"healthy", "diseased", "background"};
   };
 
   explicit OrtInferenceEngine(const std::string& model_path);

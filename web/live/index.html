@@ -5,33 +5,200 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Plant health — live</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 1rem; background: #111; color: #eee; }
-    img { max-width: 100%; height: auto; border: 1px solid #444; }
-    .meta { margin-top: 0.5rem; font-size: 0.95rem; }
+    :root {
+      --bg: #111;
+      --fg: #eee;
+      --muted: #999;
+      --panel: #1a1a1a;
+      --border: #333;
+      --healthy: #4ade80;
+      --diseased: #f87171;
+      --background: #60a5fa;
+      --unknown: #a3a3a3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background: var(--bg);
+      color: var(--fg);
+      max-width: 760px;
+      margin-inline: auto;
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 0.75rem; font-weight: 600; }
+    img {
+      width: 100%;
+      max-width: 640px;
+      height: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      display: block;
+    }
+    #label-line {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+    #label-name { letter-spacing: 0.5px; }
+    #label-name[data-class="healthy"]    { color: var(--healthy); }
+    #label-name[data-class="diseased"]   { color: var(--diseased); }
+    #label-name[data-class="background"] { color: var(--background); }
+    #label-name[data-class="unknown"]    { color: var(--unknown); }
+    #label-conf { font-size: 1.0rem; color: var(--muted); font-weight: 500; }
+    #error { color: #f87171; margin-top: 0.5rem; font-size: 0.9rem; min-height: 1.2rem; }
+    table {
+      margin-top: 0.75rem;
+      width: 100%;
+      max-width: 360px;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 0.35rem 0.6rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    tr:last-child td { border-bottom: none; }
+    th { font-weight: 600; color: var(--muted); }
+    td.prob { font-variant-numeric: tabular-nums; text-align: right; }
+    td.bar {
+      width: 100%;
+      padding: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    td.bar > div {
+      height: 6px;
+      background: var(--muted);
+      transition: width 0.15s ease;
+    }
+    tr[data-class="healthy"]    td.bar > div { background: var(--healthy); }
+    tr[data-class="diseased"]   td.bar > div { background: var(--diseased); }
+    tr[data-class="background"] td.bar > div { background: var(--background); }
+    #ts { margin-top: 0.5rem; color: var(--muted); font-size: 0.8rem; }
   </style>
 </head>
 <body>
-  <h1>Live preview</h1>
+  <h1>Plant health — live</h1>
   <img id="preview" alt="camera preview" width="640" height="480" />
-  <div class="meta" id="status">Loading…</div>
+
+  <div id="label-line">
+    <span id="label-name" data-class="unknown">Loading…</span>
+    <span id="label-conf"></span>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>Class</th><th style="text-align:right">Probability</th></tr>
+    </thead>
+    <tbody id="prob-rows"></tbody>
+  </table>
+
+  <div id="ts"></div>
+  <div id="error"></div>
+
   <!--
     Place this file in the same directory as the artifacts written by live_infer_web:
-      preview.jpg  — JPEG RGB preview
-      result.json  — { "timestamp_ns", "label", "label_name", "confidence", "logits", "probabilities" }
+      preview.jpg  - JPEG RGB preview
+      result.json  - { "timestamp_ns", "label", "label_name", "confidence", "logits", "probabilities" }
+
+    CLASS_NAMES must match utils/data_loader.py DEFAULT_CLASSES on the training
+    side (0=healthy, 1=diseased, 2=background). If the model output count ever
+    changes, update both sides together.
   -->
   <script>
+    const CLASS_NAMES = ['Healthy', 'Diseased', 'Background'];
+    const CLASS_SLUGS = ['healthy', 'diseased', 'background'];
+
+    function resolveClass(j) {
+      // Prefer the index emitted by the model (always an integer).
+      // Fall back to the optional label_name from the binary if present,
+      // and only as a very last resort show the raw integer.
+      const idx = typeof j.label === 'number' ? j.label : -1;
+      if (idx >= 0 && idx < CLASS_NAMES.length) {
+        return { name: CLASS_NAMES[idx], slug: CLASS_SLUGS[idx] };
+      }
+      if (j.label_name) {
+        const slug = String(j.label_name).toLowerCase();
+        const name = slug.charAt(0).toUpperCase() + slug.slice(1);
+        return { name, slug };
+      }
+      return { name: 'Class ' + idx, slug: 'unknown' };
+    }
+
+    function ensureProbRows(n) {
+      const tbody = document.getElementById('prob-rows');
+      if (tbody.childElementCount === n) return;
+      tbody.innerHTML = '';
+      for (let i = 0; i < n; i++) {
+        const tr = document.createElement('tr');
+        const slug = i < CLASS_SLUGS.length ? CLASS_SLUGS[i] : 'unknown';
+        const name = i < CLASS_NAMES.length ? CLASS_NAMES[i] : ('Class ' + i);
+        tr.setAttribute('data-class', slug);
+        tr.innerHTML =
+          '<td>' + name + '</td>' +
+          '<td class="prob" id="prob-' + i + '">-</td>';
+        const trBar = document.createElement('tr');
+        trBar.setAttribute('data-class', slug);
+        trBar.innerHTML = '<td class="bar" colspan="2"><div id="bar-' + i + '" style="width:0%"></div></td>';
+        tbody.appendChild(tr);
+        tbody.appendChild(trBar);
+      }
+    }
+
+    function setProbs(probs) {
+      ensureProbRows(probs.length);
+      for (let i = 0; i < probs.length; i++) {
+        const p = probs[i];
+        const td = document.getElementById('prob-' + i);
+        const bar = document.getElementById('bar-' + i);
+        if (td) td.textContent = (p * 100).toFixed(2) + '%';
+        if (bar) bar.style.width = Math.min(100, Math.max(0, p * 100)).toFixed(2) + '%';
+      }
+    }
+
+    function fmtTs(ns) {
+      if (typeof ns !== 'number' || !isFinite(ns)) return '';
+      const ms = Math.round(ns / 1e6);
+      const d = new Date(ms);
+      return d.toLocaleTimeString();
+    }
+
     async function poll() {
+      const errEl = document.getElementById('error');
       try {
         const r = await fetch('result.json?' + Date.now(), { cache: 'no-store' });
         if (!r.ok) throw new Error('result.json HTTP ' + r.status);
         const j = await r.json();
+
         const img = document.getElementById('preview');
         img.src = 'preview.jpg?t=' + (j.timestamp_ns != null ? j.timestamp_ns : Date.now());
-        const name = j.label_name != null && j.label_name !== '' ? j.label_name : ('class ' + j.label);
-        const conf = j.confidence != null ? j.confidence.toFixed(4) : '?';
-        document.getElementById('status').textContent = name + ' — confidence ' + conf;
+
+        const cls = resolveClass(j);
+        const nameEl = document.getElementById('label-name');
+        nameEl.textContent = cls.name;
+        nameEl.setAttribute('data-class', cls.slug);
+
+        const conf = typeof j.confidence === 'number'
+          ? (j.confidence * 100).toFixed(2) + '% confidence'
+          : '';
+        document.getElementById('label-conf').textContent = conf;
+
+        if (Array.isArray(j.probabilities) && j.probabilities.length > 0) {
+          setProbs(j.probabilities);
+        }
+
+        document.getElementById('ts').textContent = fmtTs(j.timestamp_ns);
+        errEl.textContent = '';
       } catch (e) {
-        document.getElementById('status').textContent = String(e);
+        errEl.textContent = String(e);
       }
     }
     setInterval(poll, 400);

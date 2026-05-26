@@ -5,7 +5,7 @@ This document describes how the C++ inference stack is structured, how it maps t
 Executable tools today:
 
 - **`phc_infer_mobilenet`** — single-image inference (ORT forward pass).
-- **`phc_evaluate_mobilenet`** — batch evaluation on `healthy/` / `diseased/` folders (metrics + timing).
+- **`phc_evaluate_mobilenet`** — batch evaluation on `healthy/` / `diseased/` / `background/` folders (metrics + timing).
 - **`live_infer_web`** (optional, `-DENABLE_LIBCAMERA=ON`) — live camera + inference + `preview.jpg` / `result.json` for a static browser UI.
 
 Shared preprocessing and ONNX Runtime wiring live under **`src/preprocess`**, **`src/inference_ort`**, and related modules.
@@ -27,7 +27,7 @@ flowchart LR
     Cap["Capture / decode\nJPEG or raw frames"]
     Pre["Resize + ImageNet\nNCHW float32"]
     ORT_arm["ONNX Runtime\nlinux-aarch64"]
-    Out["Healthy / diseased\nlogits or label"]
+    Out["Healthy / diseased / background\nlogits or label"]
   end
 
   Model --> ORT_x64
@@ -60,9 +60,9 @@ flowchart LR
 **Contract (must match training — unchanged):**
 
 - Input tensor: name `input`, shape `[1, 3, 224, 224]`, float32, **NCHW**.
-- Output: name `logits`, shape `[1, 2]`.
+- Output: name `logits`, shape `[1, 3]`.
 - RGB: resize **224×224** (bilinear), scale to `[0,1]`, ImageNet mean/std per channel.
-- Classes: `0` = healthy, `1` = diseased.
+- Classes (must match `utils.data_loader.DEFAULT_CLASSES`): `0` = healthy, `1` = diseased, `2` = background.
 
 ---
 
@@ -95,7 +95,7 @@ Use this to iterate **without** the Pi: same ONNX file, same preprocessing contr
    ./build/local-release/phc_infer_mobilenet ../checkpoints/mobilenet_v3.onnx /path/to/leaf.jpg
    ```
 
-5. **Batch evaluation** (same layout as Python `data/test/healthy` and `data/test/diseased`):
+5. **Batch evaluation** (same layout as Python `data/test/healthy`, `data/test/diseased`, and `data/test/background`):
 
    ```bash
    ./build/local-release/phc_evaluate_mobilenet ../checkpoints/mobilenet_v3.onnx ../data/test

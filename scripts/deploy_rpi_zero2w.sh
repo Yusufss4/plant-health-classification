@@ -8,7 +8,7 @@ Deploy binaries + model + dataset to a Raspberry Pi (Zero 2 W friendly).
 What it copies:
   - C++ build outputs (tools + optionally live_infer_web)
   - ONNX model file
-  - Dataset folder (expects healthy/ and diseased/ subfolders somewhere under it)
+  - Dataset folder (expects healthy/, diseased/, and background/ subfolders somewhere under it)
   - Live web page (web/live/index.html) into deploy/artifacts for serving
   - (Optional) ONNX Runtime shared libs into deploy/lib
 
@@ -23,7 +23,7 @@ Common options:
   --port <port>            SSH port (default: 22)
   --dest <dir>             Remote deploy dir (default: ~/phc_deploy)
   --build-dir <dir>        Local build dir (default: cpp/build/rpi-zero2w-release)
-  --model <file.onnx>      Local ONNX model (default: checkpoints/mobilenet_v3.onnx)
+  --model <file.onnx>      Local ONNX model (default: checkpoints/mobilenet_v3_3cls.onnx)
   --data <dir>             Local dataset root (default: data/test)
   --ort-root <dir>         Local ONNX Runtime root; if set, copies libonnxruntime.so* to dest/lib
   --no-delete              Do not delete remote files not present locally
@@ -38,10 +38,10 @@ Examples:
 After deploy (on the Pi):
   cd ~/phc_deploy
   export LD_LIBRARY_PATH="$PWD/lib:${LD_LIBRARY_PATH}"
-  ./phc_evaluate_mobilenet model/mobilenet_v3.onnx data/test
+  ./phc_evaluate_mobilenet model/mobilenet_v3_3cls.onnx data/test
 
 Live preview (on the Pi):
-  ./bin/live_infer_web ./model/mobilenet_v3.onnx ./artifacts
+  ./bin/live_infer_web ./model/mobilenet_v3_3cls.onnx ./artifacts
   python3 -m http.server 8080 --bind 0.0.0.0 --directory ./artifacts
 EOF
 }
@@ -51,7 +51,7 @@ USER="pi"
 PORT="22"
 DEST="~/phc_deploy"
 BUILD_DIR="cpp/build/rpi-zero2w-release"
-MODEL="checkpoints/mobilenet_v3.onnx"
+MODEL="checkpoints/mobilenet_v3_3cls.onnx"
 DATA="data/test"
 WEB_DIR="web/live"
 ORT_ROOT=""
@@ -147,7 +147,7 @@ rsync -avz ${DRY_RUN} ${DELETE_FLAG} "${RSYNC_SSH[@]}" \
 
 echo "==> Syncing model"
 rsync -avz ${DRY_RUN} "${RSYNC_SSH[@]}" \
-  "${MODEL}" "${REMOTE}:${DEST}/model/mobilenet_v3.onnx"
+  "${MODEL}" "${REMOTE}:${DEST}/model/mobilenet_v3_3cls.onnx"
 
 echo "==> Syncing dataset"
 rsync -avz ${DRY_RUN} ${DELETE_FLAG} "${RSYNC_SSH[@]}" \
@@ -172,9 +172,9 @@ echo "==> Done."
 echo "On the Pi:"
 echo "  cd ${DEST}"
 echo "  export LD_LIBRARY_PATH=\"\$PWD/lib:\${LD_LIBRARY_PATH}\""
-echo "  ./bin/phc_evaluate_mobilenet ./model/mobilenet_v3.onnx ./data/test"
+echo "  ./bin/phc_evaluate_mobilenet ./model/mobilenet_v3_3cls.onnx ./data/test"
 echo ""
 echo "Live preview (on the Pi):"
-echo "  ./bin/live_infer_web ./model/mobilenet_v3.onnx ./artifacts"
+echo "  ./bin/live_infer_web ./model/mobilenet_v3_3cls.onnx ./artifacts"
 echo "  python3 -m http.server 8080 --bind 0.0.0.0 --directory ./artifacts"
 

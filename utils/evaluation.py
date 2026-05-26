@@ -32,28 +32,39 @@ def evaluate_model(
     model,
     dataloader,
     device,
-    class_names=['healthy', 'diseased'],
+    class_names=('healthy', 'diseased', 'background'),
     measure_inference_time=True,
 ):
     """
     Evaluate model on a dataset and return comprehensive metrics.
-    
+
+    Works for both binary (2-class) and multi-class (3+) setups. Binary-only
+    fields (``true_positive``, ``specificity``, scalar ROC-AUC) are populated
+    only when ``len(class_names) == 2`` so legacy reports keep working.
+
     Args:
         model: PyTorch model
         dataloader: DataLoader for evaluation data
         device: Device to run evaluation on (cuda/cpu)
-        class_names: List of class names
-        measure_inference_time: If True, wall-clock time for the full eval loop (transfer + forward + softmax).
+        class_names: Sequence of class names in label-index order. Default
+            matches the 3-class model: 0=healthy, 1=diseased, 2=background.
+        measure_inference_time: If True, wall-clock time for the full eval loop
+            (transfer + forward + softmax).
 
     Returns:
-        dict: Dictionary containing all evaluation metrics including:
-            - accuracy, precision, recall, f1_score
-            - balanced_accuracy, specificity, mcc, roc_auc (or None if undefined)
-            - inference_timing: total_sec, num_samples, avg_ms_per_image, throughput_imgs_per_sec
-            - confusion_matrix with TP, TN, FP, FN
-            - probabilities for threshold analysis
+        dict: Dictionary containing evaluation metrics including:
+            - accuracy, balanced_accuracy, mcc
+            - precision/recall/f1: scalar (binary) or macro-averaged (multi-class)
+            - per_class_precision/recall/f1: arrays of length len(class_names)
+            - confusion_matrix (NxN)
+            - inference_timing
+            - probabilities, predictions, labels (raw arrays)
             - classification_report
     """
+    class_names = list(class_names)
+    n_classes = len(class_names)
+    is_binary = n_classes == 2
+
     model.eval()
 
     all_predictions = []
@@ -69,12 +80,10 @@ def evaluate_model(
             images = images.to(device)
             labels = labels.to(device)
 
-            # Forward pass
             outputs = model(images)
             probabilities = torch.softmax(outputs, dim=1)
             _, predicted = torch.max(outputs, 1)
 
-            # Store results
             all_predictions.extend(predicted.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
             all_probabilities.extend(probabilities.cpu().numpy())
@@ -86,38 +95,66 @@ def evaluate_model(
         total_sec = t_end - t_start
     else:
         total_sec = None
-    
-    # Convert to numpy arrays
+
     all_predictions = np.array(all_predictions)
     all_labels = np.array(all_labels)
     all_probabilities = np.array(all_probabilities)
-    
-    # Calculate metrics
+
     accuracy = accuracy_score(all_labels, all_predictions)
-    precision = precision_score(all_labels, all_predictions, average='binary')
-    recall = recall_score(all_labels, all_predictions, average='binary')
-    f1 = f1_score(all_labels, all_predictions, average='binary')
-    
-    # Confusion matrix
-    cm = confusion_matrix(all_labels, all_predictions)
-    tn, fp, fn, tp = cm.ravel()
-    
-    # Classification report
+
+    avg = 'binary' if is_binary else 'macro'
+    precision = precision_score(
+        all_labels, all_predictions, average=avg, zero_division=0,
+        labels=list(range(n_classes)),
+    )
+    recall = recall_score(
+        all_labels, all_predictions, average=avg, zero_division=0,
+        labels=list(range(n_classes)),
+    )
+    f1 = f1_score(
+        all_labels, all_predictions, average=avg, zero_division=0,
+        labels=list(range(n_classes)),
+    )
+
+    per_class_precision = precision_score(
+        all_labels, all_predictions, average=None, zero_division=0,
+        labels=list(range(n_classes)),
+    )
+    per_class_recall = recall_score(
+        all_labels, all_predictions, average=None, zero_division=0,
+        labels=list(range(n_classes)),
+    )
+    per_class_f1 = f1_score(
+        all_labels, all_predictions, average=None, zero_division=0,
+        labels=list(range(n_classes)),
+    )
+
+    cm = confusion_matrix(all_labels, all_predictions, labels=list(range(n_classes)))
+
     report = classification_report(
-        all_labels, 
-        all_predictions, 
+        all_labels,
+        all_predictions,
+        labels=list(range(n_classes)),
         target_names=class_names,
-        output_dict=True
+        output_dict=True,
+        zero_division=0,
     )
 
     balanced_acc = balanced_accuracy_score(all_labels, all_predictions)
-    specificity = float(tn) / float(tn + fp) if (tn + fp) > 0 else 0.0
     mcc = matthews_corrcoef(all_labels, all_predictions)
 
-    try:
-        roc_auc = roc_auc_score(all_labels, all_probabilities[:, 1])
-    except ValueError:
-        roc_auc = None  # e.g. only one class present in y_true
+    # Binary-only convenience fields. Skipped for multi-class to avoid
+    # ambiguous semantics (e.g. "which class is the positive one?").
+    tp = tn = fp = fn = None
+    specificity = None
+    roc_auc = None
+    if is_binary and cm.shape == (2, 2):
+        tn, fp, fn, tp = cm.ravel()
+        specificity = float(tn) / float(tn + fp) if (tn + fp) > 0 else 0.0
+        try:
+            roc_auc = roc_auc_score(all_labels, all_probabilities[:, 1])
+        except ValueError:
+            roc_auc = None
 
     n_samples = len(all_labels)
     if measure_inference_time and total_sec is not None and n_samples > 0:
@@ -131,19 +168,24 @@ def evaluate_model(
         inference_timing = None
 
     results = {
+        'class_names': class_names,
+        'n_classes': n_classes,
         'accuracy': accuracy,
         'precision': precision,
         'recall': recall,
         'f1_score': f1,
+        'per_class_precision': per_class_precision,
+        'per_class_recall': per_class_recall,
+        'per_class_f1': per_class_f1,
         'balanced_accuracy': balanced_acc,
         'specificity': specificity,
         'mcc': mcc,
         'roc_auc': roc_auc,
         'confusion_matrix': cm,
-        'true_positive': int(tp),
-        'true_negative': int(tn),
-        'false_positive': int(fp),
-        'false_negative': int(fn),
+        'true_positive': int(tp) if tp is not None else None,
+        'true_negative': int(tn) if tn is not None else None,
+        'false_positive': int(fp) if fp is not None else None,
+        'false_negative': int(fn) if fn is not None else None,
         'classification_report': report,
         'predictions': all_predictions,
         'labels': all_labels,
@@ -154,33 +196,39 @@ def evaluate_model(
     return results
 
 
-def print_evaluation_results(results, class_names=['healthy', 'diseased']):
+def print_evaluation_results(results, class_names=None):
     """
-    Print evaluation results in a formatted way.
-    
+    Print evaluation results in a formatted way (binary or multi-class).
+
     Args:
         results: Dictionary returned by evaluate_model
-        class_names: List of class names
+        class_names: Optional override; otherwise uses results['class_names'].
     """
+    if class_names is None:
+        class_names = results.get('class_names', ['healthy', 'diseased', 'background'])
+    n_classes = len(class_names)
+    is_binary = n_classes == 2
+    metric_avg_label = 'binary' if is_binary else 'macro'
+
     print("=" * 60)
     print("EVALUATION RESULTS")
     print("=" * 60)
-    
+
     print(f"\nOverall Metrics:")
-    print(f"  Accuracy:  {results['accuracy']:.4f} ({results['accuracy']*100:.2f}%)")
+    print(f"  Accuracy:           {results['accuracy']:.4f} ({results['accuracy']*100:.2f}%)")
     if results.get('balanced_accuracy') is not None:
-        print(f"  Balanced accuracy: {results['balanced_accuracy']:.4f} ({results['balanced_accuracy']*100:.2f}%)")
-    print(f"  Precision (diseased): {results['precision']:.4f} ({results['precision']*100:.2f}%)")
-    print(f"  Recall (diseased):    {results['recall']:.4f} ({results['recall']*100:.2f}%)")
-    print(f"  F1-Score (diseased):  {results['f1_score']:.4f} ({results['f1_score']*100:.2f}%)")
-    if results.get('specificity') is not None:
-        print(f"  Specificity (healthy): {results['specificity']:.4f} ({results['specificity']*100:.2f}%)")
+        print(f"  Balanced accuracy:  {results['balanced_accuracy']:.4f} ({results['balanced_accuracy']*100:.2f}%)")
+    print(f"  Precision ({metric_avg_label}): {results['precision']:.4f} ({results['precision']*100:.2f}%)")
+    print(f"  Recall    ({metric_avg_label}): {results['recall']:.4f} ({results['recall']*100:.2f}%)")
+    print(f"  F1-Score  ({metric_avg_label}): {results['f1_score']:.4f} ({results['f1_score']*100:.2f}%)")
+    if is_binary and results.get('specificity') is not None:
+        print(f"  Specificity ({class_names[0]}): {results['specificity']:.4f}")
     if results.get('mcc') is not None:
-        print(f"  MCC:       {results['mcc']:.4f}")
-    if results.get('roc_auc') is not None:
-        print(f"  ROC-AUC:   {results['roc_auc']:.4f}")
-    elif 'roc_auc' in results:
-        print(f"  ROC-AUC:   n/a (need both classes in labels)")
+        print(f"  MCC:                {results['mcc']:.4f}")
+    if is_binary and results.get('roc_auc') is not None:
+        print(f"  ROC-AUC:            {results['roc_auc']:.4f}")
+    elif is_binary and 'roc_auc' in results:
+        print(f"  ROC-AUC:            n/a (need both classes in labels)")
 
     timing = results.get('inference_timing')
     if timing:
@@ -189,33 +237,38 @@ def print_evaluation_results(results, class_names=['healthy', 'diseased']):
         print(f"  Avg/image: {timing['avg_ms_per_image']:.3f} ms")
         print(f"  Throughput: {timing['throughput_imgs_per_sec']:.2f} img/s")
 
-    print(f"\nConfusion Matrix:")
+    print(f"\nConfusion Matrix (rows=actual, cols=predicted):")
     cm = results['confusion_matrix']
-    print(f"                  Predicted")
-    print(f"              {class_names[0]:>10} {class_names[1]:>10}")
-    print(f"Actual {class_names[0]:>10}  {cm[0,0]:>10}  {cm[0,1]:>10}")
-    print(f"       {class_names[1]:>10}  {cm[1,0]:>10}  {cm[1,1]:>10}")
-    
-    tn, fp, fn, tp = cm.ravel()
-    print(f"\n  True Negatives (TN):  {tn}")
-    print(f"  False Positives (FP): {fp} ⚠️ (healthy classified as diseased)")
-    print(f"  False Negatives (FN): {fn} ⚠️ (diseased classified as healthy - CRITICAL!)")
-    print(f"  True Positives (TP):  {tp}")
-    
+    col_w = max(10, max(len(c) for c in class_names) + 2)
+    header = " " * (col_w + 2) + "".join(f"{c:>{col_w}}" for c in class_names)
+    print(header)
+    for i, row_name in enumerate(class_names):
+        row = f"{row_name:>{col_w}}  " + "".join(f"{int(cm[i, j]):>{col_w}}" for j in range(n_classes))
+        print(row)
+
+    if is_binary and cm.shape == (2, 2):
+        tn, fp, fn, tp = cm.ravel()
+        print(f"\n  True Negatives (TN):  {tn}")
+        print(f"  False Positives (FP): {fp}")
+        print(f"  False Negatives (FN): {fn}")
+        print(f"  True Positives (TP):  {tp}")
+
     print(f"\nPer-Class Metrics:")
     report = results['classification_report']
     for class_name in class_names:
+        if class_name not in report:
+            continue
         metrics = report[class_name]
         print(f"\n  {class_name.capitalize()}:")
         print(f"    Precision: {metrics['precision']:.4f}")
         print(f"    Recall:    {metrics['recall']:.4f}")
         print(f"    F1-Score:  {metrics['f1-score']:.4f}")
         print(f"    Support:   {metrics['support']}")
-    
+
     print("=" * 60)
 
 
-def plot_confusion_matrix(cm, class_names=['healthy', 'diseased'], save_path=None):
+def plot_confusion_matrix(cm, class_names=('healthy', 'diseased', 'background'), save_path=None):
     """
     Plot confusion matrix as a heatmap.
     

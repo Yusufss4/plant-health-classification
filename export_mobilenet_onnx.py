@@ -4,7 +4,10 @@ Export trained MobileNet-v3-Small to ONNX for C++ / ONNX Runtime inference.
 Usage:
     python export_mobilenet_onnx.py [--checkpoint PATH] [--output PATH] [--no-verify]
 
-Class indices: 0 = healthy, 1 = diseased (matches PlantHealthDataset).
+Class indices (must match utils.data_loader.DEFAULT_CLASSES):
+    0 = healthy
+    1 = diseased
+    2 = background
 Input: NCHW float32, batch 1, 3x224x224, ImageNet-normalized (see cpp/README.md).
 """
 
@@ -18,8 +21,9 @@ from models import create_mobilenet_v3_model
 
 # Must match train.py mobilenet_v3 branch
 DROPOUT = 0.2
-DEFAULT_CHECKPOINT = "checkpoints/mobilenet_v3_best.pth"
-DEFAULT_OUTPUT = "checkpoints/mobilenet_v3.onnx"
+NUM_CLASSES = 3  # healthy, diseased, background
+DEFAULT_CHECKPOINT = "checkpoints/mobilenet_v3_3cls_best.pth"
+DEFAULT_OUTPUT = "checkpoints/mobilenet_v3_3cls.onnx"
 
 
 def load_weights(model, checkpoint_path: str, device: torch.device) -> None:
@@ -39,7 +43,9 @@ def export_onnx(
     opset: int = 17,
 ) -> None:
     device = torch.device("cpu")
-    model = create_mobilenet_v3_model(num_classes=2, dropout=DROPOUT, pretrained=False)
+    model = create_mobilenet_v3_model(
+        num_classes=NUM_CLASSES, dropout=DROPOUT, pretrained=False
+    )
     load_weights(model, checkpoint_path, device)
     model.eval()
 
@@ -72,7 +78,9 @@ def verify_onnx(checkpoint_path: str, onnx_path: str) -> None:
     import onnxruntime as ort
 
     device = torch.device("cpu")
-    model = create_mobilenet_v3_model(num_classes=2, dropout=DROPOUT, pretrained=False)
+    model = create_mobilenet_v3_model(
+        num_classes=NUM_CLASSES, dropout=DROPOUT, pretrained=False
+    )
     load_weights(model, checkpoint_path, device)
     model.eval()
 

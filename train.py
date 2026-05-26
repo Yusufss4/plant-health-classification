@@ -77,13 +77,16 @@ def train_model(model_type='cnn'):
     
     # Hardcoded configuration
     data_dir = 'data/'
+    num_classes = 3  # healthy, diseased, background
     if model_type == 'cnn':
         epochs = 10
         batch_size = 32
         lr = 0.0001
         dropout = 0.3
     elif model_type == 'mobilenet_v3':
-        epochs = 10
+        # Bumped from 10 -> 15 because the 3-class boundary is harder than
+        # the original 2-class one and the dataset is ~30% larger.
+        epochs = 15
         batch_size = 32
         lr = 0.0001
         dropout = 0.2
@@ -119,13 +122,13 @@ def train_model(model_type='cnn'):
     print(f'Val samples: {len(val_loader.dataset)}')
     
     # Create model
-    print(f'\nCreating {model_type.upper()} model...')
+    print(f'\nCreating {model_type.upper()} model (num_classes={num_classes})...')
     if model_type == 'cnn':
-        model = create_cnn_model(num_classes=2, dropout=dropout)
+        model = create_cnn_model(num_classes=num_classes, dropout=dropout)
     elif model_type == 'mobilenet_v3':
-        model = create_mobilenet_v3_model(num_classes=2, dropout=dropout)
+        model = create_mobilenet_v3_model(num_classes=num_classes, dropout=dropout)
     else:  # vit
-        model = create_vit_model(num_classes=2, dropout=dropout)
+        model = create_vit_model(num_classes=num_classes, dropout=dropout)
     
     model = model.to(device)
     print(f'Total parameters: {model.get_num_parameters():,}')
@@ -183,9 +186,11 @@ def train_model(model_type='cnn'):
             best_val_loss = val_loss
             best_val_acc = val_acc
             
+            # _3cls suffix keeps the previous 2-class checkpoint files intact on
+            # disk while this 3-class run produces parallel artifacts.
             checkpoint_path = os.path.join(
-                checkpoint_dir, 
-                f'{model_type}_best.pth'
+                checkpoint_dir,
+                f'{model_type}_3cls_best.pth'
             )
             torch.save({
                 'epoch': epoch,

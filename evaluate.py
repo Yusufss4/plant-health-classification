@@ -14,10 +14,11 @@ import torch
 
 from models import create_cnn_model, create_mobilenet_v3_model, create_vit_model
 from utils import (
+    DEFAULT_CLASSES,
     create_data_loaders,
     evaluate_model,
     print_evaluation_results,
-    plot_confusion_matrix
+    plot_confusion_matrix,
 )
 
 
@@ -34,14 +35,14 @@ def load_model(model_type, weights_path, device):
         Loaded model
     """
     print(f'Loading {model_type.upper()} model from {weights_path}...')
-    
-    # Create model
+
+    # 3 classes: healthy, diseased, background
     if model_type == 'cnn':
-        model = create_cnn_model(num_classes=2)
+        model = create_cnn_model(num_classes=3)
     elif model_type == 'mobilenet_v3':
-        model = create_mobilenet_v3_model(num_classes=2)
+        model = create_mobilenet_v3_model(num_classes=3)
     elif model_type == 'vit':
-        model = create_vit_model(num_classes=2)
+        model = create_vit_model(num_classes=3)
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     
@@ -80,7 +81,8 @@ def evaluate_single_model(model_type='cnn'):
     # Hardcoded configuration
     test_dir = 'data/test'
     batch_size = 32
-    model_path = f'checkpoints/{model_type}_best.pth'
+    # Matches train.py's _3cls suffix so old 2-class checkpoints stay untouched.
+    model_path = f'checkpoints/{model_type}_3cls_best.pth'
     num_workers = 4
     
     # Set device
@@ -105,13 +107,17 @@ def evaluate_single_model(model_type='cnn'):
     print(f'Evaluating on Test Set ({len(test_loader.dataset)} samples)')
     print(f'{"="*80}')
     
-    results = evaluate_model(model, test_loader, device)
-    
-    # Print results
-    print_evaluation_results(results)
-    
-    # Show confusion matrix
-    plot_confusion_matrix(results['confusion_matrix'], save_path=None)
+    results = evaluate_model(
+        model, test_loader, device, class_names=DEFAULT_CLASSES
+    )
+
+    print_evaluation_results(results, class_names=DEFAULT_CLASSES)
+
+    plot_confusion_matrix(
+        results['confusion_matrix'],
+        class_names=DEFAULT_CLASSES,
+        save_path=None,
+    )
     
     print('\nEvaluation completed!')
     

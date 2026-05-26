@@ -37,15 +37,22 @@ int main(int argc, char** argv) {
 
   phc::OrtInferenceEngine engine(model_path);
   const phc::InferenceResult r = engine.Run(input);
-  if (r.logits.size() >= 2 && r.probabilities.size() >= 2) {
-    std::cout << "logits: [" << r.logits[0] << ", " << r.logits[1] << "]\n";
-    std::cout << "prob:   [" << r.probabilities[0] << ", " << r.probabilities[1]
-              << "]\n";
-    std::cout << "class:  " << r.label << " ("
-              << (r.label_name.empty() ? "?" : r.label_name) << ")\n";
-  } else {
-    std::cout << "class:  " << r.label << " ("
-              << (r.label_name.empty() ? "?" : r.label_name) << ")\n";
+  if (!r.logits.empty()) {
+    std::cout << "logits: [";
+    for (size_t i = 0; i < r.logits.size(); ++i) {
+      std::cout << r.logits[i] << (i + 1 < r.logits.size() ? ", " : "");
+    }
+    std::cout << "]\n";
   }
+  if (!r.probabilities.empty()) {
+    std::cout << "prob:   [";
+    for (size_t i = 0; i < r.probabilities.size(); ++i) {
+      std::cout << r.probabilities[i]
+                << (i + 1 < r.probabilities.size() ? ", " : "");
+    }
+    std::cout << "]\n";
+  }
+  std::cout << "class:  " << r.label << " ("
+            << (r.label_name.empty() ? "?" : r.label_name) << ")\n";
   return 0;
 }

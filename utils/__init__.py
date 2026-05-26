@@ -3,6 +3,7 @@ Utils package for plant health classification.
 """
 
 from .data_loader import (
+    DEFAULT_CLASSES,
     PlantHealthDataset,
     create_data_loaders,
     get_train_transforms,
@@ -22,6 +23,7 @@ from .evaluation import (
 )
 
 __all__ = [
+    'DEFAULT_CLASSES',
     'PlantHealthDataset',
     'create_data_loaders',
     'get_train_transforms',

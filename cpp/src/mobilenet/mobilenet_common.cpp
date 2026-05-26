@@ -151,10 +151,25 @@ void PrintLogitsLine(const float* logits, size_t n) {
   for (size_t i = 0; i < n; ++i) {
     prob[i] /= sum;
   }
-  static const char* kNames[] = {"healthy", "diseased"};
-  std::cout << "logits: [" << logits[0] << ", " << logits[1] << "]\n";
-  std::cout << "prob:   [" << prob[0] << ", " << prob[1] << "]\n";
-  std::cout << "class:  " << argmax << " (" << kNames[argmax] << ")\n";
+  // Must match utils.data_loader.DEFAULT_CLASSES on the Python side
+  // (0=healthy, 1=diseased, 2=background).
+  static const char* kNames[] = {"healthy", "diseased", "background"};
+  static const size_t kNumNames = sizeof(kNames) / sizeof(kNames[0]);
+
+  std::cout << "logits: [";
+  for (size_t i = 0; i < n; ++i) {
+    std::cout << logits[i] << (i + 1 < n ? ", " : "");
+  }
+  std::cout << "]\n";
+
+  std::cout << "prob:   [";
+  for (size_t i = 0; i < n; ++i) {
+    std::cout << prob[i] << (i + 1 < n ? ", " : "");
+  }
+  std::cout << "]\n";
+
+  const char* name = (argmax < kNumNames) ? kNames[argmax] : "<oob>";
+  std::cout << "class:  " << argmax << " (" << name << ")\n";
 }
 
 }  // namespace mobilenet
