@@ -1,5 +1,7 @@
 #include "libcamera_camera.hpp"
 
+#include "../core/rgb_normalize.hpp"
+
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -21,6 +23,37 @@
 
 namespace phc {
 
+namespace {
+
+constexpr bool kForceLiveRbSwap = true;
+
+const char* PackedOrderName(PackedRgbOrder order) {
+  return (order == PackedRgbOrder::Rgb) ? "RGB" : "BGR";
+}
+
+bool ResolvePackedFormat(const libcamera::PixelFormat& pf, int& bpp,
+                         PackedRgbOrder& order) {
+  if (pf == libcamera::formats::RGB888) {
+    bpp = 3;
+    order = PackedRgbOrder::Rgb;
+    return true;
+  }
+  if (pf == libcamera::formats::BGR888) {
+    bpp = 3;
+    order = PackedRgbOrder::Bgr;
+    return true;
+  }
+  return false;
+}
+
+void LogStreamConfig(const char* stage, const libcamera::StreamConfiguration& sc) {
+  std::cerr << "libcamera " << stage << ": format=" << sc.pixelFormat.toString()
+            << " size=" << sc.size.width << "x" << sc.size.height
+            << " stride=" << sc.stride << "\n";
+}
+
+}  // namespace
+
 struct LibcameraCamera::Impl {
   FrameCallback cb;
   std::atomic<bool> running{false};
@@ -31,6 +64,8 @@ struct LibcameraCamera::Impl {
   std::unique_ptr<libcamera::FrameBufferAllocator> allocator;
   libcamera::Stream* stream = nullptr;
   std::vector<std::unique_ptr<libcamera::Request>> requests;
+  int src_bpp = 3;
+  PackedRgbOrder src_order = PackedRgbOrder::Rgb;
   std::mutex mu;
 
   uint64_t NowNs() const {
@@ -64,7 +99,7 @@ void LibcameraCamera::OnRequestCompleted(libcamera::Request* request) {
     return;
   }
 
-  // Plane 0 for RGB888.
+  // Plane 0 for packed RGB-family output.
   const int fd = fb->planes()[0].fd.get();
   const size_t length = fb->planes()[0].length;
   void* map = ::mmap(nullptr, length, PROT_READ, MAP_SHARED, fd, 0);
@@ -79,17 +114,24 @@ void LibcameraCamera::OnRequestCompleted(libcamera::Request* request) {
   f.width = static_cast<int>(impl_->config->at(0).size.width);
   f.height = static_cast<int>(impl_->config->at(0).size.height);
   // libcamera's stride is accessible via StreamConfiguration::stride (bytes per line)
-  f.stride_bytes = static_cast<int>(impl_->config->at(0).stride);
-  if (f.stride_bytes <= 0) {
-    f.stride_bytes = f.width * 3;
-  }
+  f.stride_bytes = f.width * 3;
   f.timestamp_ns = impl_->NowNs();
 
-  const size_t needed =
-      static_cast<size_t>(f.height) * static_cast<size_t>(f.stride_bytes);
-  f.data.resize(needed);
-  std::memcpy(f.data.data(), map, std::min(needed, length));
+  const int src_stride_bytes = static_cast<int>(impl_->config->at(0).stride);
+  const bool ok = NormalizePackedToRgb888(
+      static_cast<const uint8_t*>(map), f.width, f.height, src_stride_bytes,
+      impl_->src_bpp, impl_->src_order, f.data, f.stride_bytes);
   ::munmap(map, length);
+  if (!ok) {
+    std::cerr << "libcamera: failed to normalize frame to RGB888"
+              << " src_stride=" << src_stride_bytes
+              << " src_bpp=" << impl_->src_bpp
+              << " src_order=" << PackedOrderName(impl_->src_order)
+              << " dst=" << f.width << "x" << f.height << "\n";
+    request->reuse(libcamera::Request::ReuseBuffers);
+    impl_->camera->queueRequest(request);
+    return;
+  }
 
   if (impl_->cb) {
     impl_->cb(std::move(f));
@@ -155,6 +197,7 @@ bool LibcameraCamera::Start(FrameCallback cb) {
   sc.bufferCount = 4;
 
   const libcamera::CameraConfiguration::Status v = impl_->config->validate();
+  LogStreamConfig("post-validate", sc);
   if (v == libcamera::CameraConfiguration::Invalid) {
     std::cerr << "Camera configuration invalid\n";
     impl_->camera->release();
@@ -169,6 +212,29 @@ bool LibcameraCamera::Start(FrameCallback cb) {
     impl_->cm->stop();
     impl_->running = false;
     return false;
+  }
+
+  LogStreamConfig("post-configure", impl_->config->at(0));
+  int src_bpp = 0;
+  PackedRgbOrder src_order = PackedRgbOrder::Rgb;
+  if (!ResolvePackedFormat(impl_->config->at(0).pixelFormat, src_bpp, src_order)) {
+    std::cerr << "Unsupported libcamera pixel format negotiated: "
+              << impl_->config->at(0).pixelFormat.toString()
+              << ". Expected RGB888 or BGR888. "
+              << "If your pipeline negotiates a 4-byte format, add explicit "
+              << "normalization before emitting Frame::Rgb888.\n";
+    impl_->camera->release();
+    impl_->cm->stop();
+    impl_->running = false;
+    return false;
+  }
+  impl_->src_bpp = src_bpp;
+  impl_->src_order = kForceLiveRbSwap ? PackedRgbOrder::Bgr : src_order;
+  if (kForceLiveRbSwap) {
+    std::cerr << "libcamera live color fix active: forcing source channel order to "
+              << PackedOrderName(impl_->src_order)
+              << " before RGB888 normalization"
+              << " (negotiated order was " << PackedOrderName(src_order) << ")\n";
   }
 
   impl_->stream = sc.stream();
