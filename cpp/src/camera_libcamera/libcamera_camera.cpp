@@ -27,6 +27,19 @@ namespace {
 
 constexpr bool kForceLiveRbSwap = true;
 
+void ApplyRequestedFocusProfile(libcamera::Request* request) {
+  if (!request) {
+    return;
+  }
+  auto& controls = request->controls();
+  controls.set(libcamera::controls::AfMode,
+               libcamera::controls::AfModeContinuous);
+  controls.set(libcamera::controls::AfRange,
+               libcamera::controls::AfRangeMacro);
+  controls.set(libcamera::controls::AfSpeed,
+               libcamera::controls::AfSpeedFast);
+}
+
 const char* PackedOrderName(PackedRgbOrder order) {
   return (order == PackedRgbOrder::Rgb) ? "RGB" : "BGR";
 }
@@ -88,12 +101,14 @@ void LibcameraCamera::OnRequestCompleted(libcamera::Request* request) {
   const auto& bufs = request->buffers();
   auto it = bufs.find(impl_->stream);
   if (it == bufs.end()) {
+    ApplyRequestedFocusProfile(request);
     request->reuse(libcamera::Request::ReuseBuffers);
     impl_->camera->queueRequest(request);
     return;
   }
   const libcamera::FrameBuffer* fb = it->second;
   if (fb->planes().empty()) {
+    ApplyRequestedFocusProfile(request);
     request->reuse(libcamera::Request::ReuseBuffers);
     impl_->camera->queueRequest(request);
     return;
@@ -104,6 +119,7 @@ void LibcameraCamera::OnRequestCompleted(libcamera::Request* request) {
   const size_t length = fb->planes()[0].length;
   void* map = ::mmap(nullptr, length, PROT_READ, MAP_SHARED, fd, 0);
   if (map == MAP_FAILED) {
+    ApplyRequestedFocusProfile(request);
     request->reuse(libcamera::Request::ReuseBuffers);
     impl_->camera->queueRequest(request);
     return;
@@ -128,6 +144,7 @@ void LibcameraCamera::OnRequestCompleted(libcamera::Request* request) {
               << " src_bpp=" << impl_->src_bpp
               << " src_order=" << PackedOrderName(impl_->src_order)
               << " dst=" << f.width << "x" << f.height << "\n";
+    ApplyRequestedFocusProfile(request);
     request->reuse(libcamera::Request::ReuseBuffers);
     impl_->camera->queueRequest(request);
     return;
@@ -137,6 +154,7 @@ void LibcameraCamera::OnRequestCompleted(libcamera::Request* request) {
     impl_->cb(std::move(f));
   }
 
+  ApplyRequestedFocusProfile(request);
   request->reuse(libcamera::Request::ReuseBuffers);
   impl_->camera->queueRequest(request);
 }
@@ -275,7 +293,10 @@ bool LibcameraCamera::Start(FrameCallback cb) {
     return false;
   }
 
+  std::cerr << "libcamera focus profile: AfModeContinuous, AfRangeMacro, "
+               "AfSpeedFast\n";
   for (auto& req : impl_->requests) {
+    ApplyRequestedFocusProfile(req.get());
     impl_->camera->queueRequest(req.get());
   }
 
