@@ -87,7 +87,7 @@
 </head>
 <body>
   <h1>Plant health — live</h1>
-  <img id="preview" alt="camera preview" width="640" height="480" />
+  <img id="preview" src="/stream.mjpg" alt="camera preview" width="640" height="480" />
 
   <div id="label-line">
     <span id="label-name" data-class="unknown">Loading…</span>
@@ -105,13 +105,16 @@
   <div id="error"></div>
 
   <!--
-    Place this file in the same directory as the artifacts written by live_infer_web:
-      preview.jpg  - JPEG RGB preview
-      result.json  - { "timestamp_ns", "label", "label_name", "confidence", "logits", "probabilities" }
+    This page is embedded into the live_infer_web binary at build time
+    (see cpp/cmake/embed_html.cmake). The server it talks to exposes:
+      GET /stream.mjpg  - multipart/x-mixed-replace MJPEG preview
+      GET /events       - text/event-stream of inference result JSON
+                          { "timestamp_ns", "label", "label_name",
+                            "confidence", "logits", "probabilities" }
 
-    CLASS_NAMES must match utils/data_loader.py DEFAULT_CLASSES on the training
-    side (0=healthy, 1=diseased, 2=background). If the model output count ever
-    changes, update both sides together.
+    CLASS_NAMES must match utils/data_loader.py DEFAULT_CLASSES on the
+    training side (0=healthy, 1=diseased, 2=background). If the model
+    output count ever changes, update both sides together.
   -->
   <script>
     const CLASS_NAMES = ['Healthy', 'Diseased', 'Background'];
@@ -171,16 +174,9 @@
       return d.toLocaleTimeString();
     }
 
-    async function poll() {
+    function applyResult(j) {
       const errEl = document.getElementById('error');
       try {
-        const r = await fetch('result.json?' + Date.now(), { cache: 'no-store' });
-        if (!r.ok) throw new Error('result.json HTTP ' + r.status);
-        const j = await r.json();
-
-        const img = document.getElementById('preview');
-        img.src = 'preview.jpg?t=' + (j.timestamp_ns != null ? j.timestamp_ns : Date.now());
-
         const cls = resolveClass(j);
         const nameEl = document.getElementById('label-name');
         nameEl.textContent = cls.name;
@@ -201,8 +197,20 @@
         errEl.textContent = String(e);
       }
     }
-    setInterval(poll, 400);
-    poll();
+
+    const es = new EventSource('/events');
+    es.onmessage = (ev) => {
+      let j;
+      try { j = JSON.parse(ev.data); } catch (e) {
+        document.getElementById('error').textContent = 'bad event payload: ' + e;
+        return;
+      }
+      applyResult(j);
+    };
+    es.onerror = () => {
+      document.getElementById('error').textContent =
+        'event stream disconnected (browser will retry automatically)';
+    };
   </script>
 </body>
 </html>

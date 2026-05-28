@@ -9,8 +9,11 @@ What it copies:
   - C++ build outputs (tools + optionally live_infer_web)
   - ONNX model file
   - Dataset folder (expects healthy/, diseased/, and background/ subfolders somewhere under it)
-  - Live web page (web/live/index.html) into deploy/artifacts for serving
   - (Optional) ONNX Runtime shared libs into deploy/lib
+
+The live web page is now embedded into the live_infer_web binary at build
+time (see cpp/cmake/embed_html.cmake), so this script no longer copies it
+separately.
 
 Usage:
   scripts/deploy_rpi_zero2w.sh --host <pi-host-or-ip> [options]
@@ -41,8 +44,8 @@ After deploy (on the Pi):
   ./phc_evaluate_mobilenet model/mobilenet_v3_3cls.onnx data/test
 
 Live preview (on the Pi):
-  ./bin/live_infer_web ./model/mobilenet_v3_3cls.onnx ./artifacts
-  python3 -m http.server 8080 --bind 0.0.0.0 --directory ./artifacts
+  ./bin/live_infer_web ./model/mobilenet_v3_3cls.onnx --port 8080
+  # then open http://<pi>:8080/ in a browser
 EOF
 }
 
@@ -53,7 +56,6 @@ DEST="~/phc_deploy"
 BUILD_DIR="cpp/build/rpi-zero2w-release"
 MODEL="checkpoints/mobilenet_v3_3cls.onnx"
 DATA="data/test"
-WEB_DIR="web/live"
 ORT_ROOT=""
 DELETE_FLAG="--delete"
 DRY_RUN=""
@@ -90,7 +92,6 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${REPO_ROOT}/${BUILD_DIR}"
 MODEL="${REPO_ROOT}/${MODEL}"
 DATA="${REPO_ROOT}/${DATA}"
-WEB_DIR="${REPO_ROOT}/${WEB_DIR}"
 
 if [[ ! -d "${BUILD_DIR}" ]]; then
   echo "Build dir not found: ${BUILD_DIR}" >&2
@@ -104,10 +105,6 @@ if [[ ! -d "${DATA}" ]]; then
   echo "Dataset dir not found: ${DATA}" >&2
   exit 2
 fi
-if [[ ! -f "${WEB_DIR}/index.html" ]]; then
-  echo "Live web page not found: ${WEB_DIR}/index.html" >&2
-  exit 2
-fi
 
 REMOTE="${USER}@${HOST}"
 SSH="ssh -p ${PORT}"
@@ -116,7 +113,7 @@ RSYNC_SSH=(-e "ssh -p ${PORT}")
 echo "==> Preparing remote directories at ${REMOTE}:${DEST}"
 # NOTE: don't quote ${DEST}/... here; if DEST contains "~", quoting prevents tilde expansion
 # and would create directories under a literal "~" folder.
-${SSH} "${REMOTE}" "mkdir -p ${DEST}/bin ${DEST}/model ${DEST}/data ${DEST}/lib ${DEST}/artifacts"
+${SSH} "${REMOTE}" "mkdir -p ${DEST}/bin ${DEST}/model ${DEST}/data ${DEST}/lib"
 
 echo "==> Syncing binaries from ${BUILD_DIR}"
 # Copy only the executables we care about; ignore intermediate build files.
@@ -153,10 +150,6 @@ echo "==> Syncing dataset"
 rsync -avz ${DRY_RUN} ${DELETE_FLAG} "${RSYNC_SSH[@]}" \
   "${DATA}/" "${REMOTE}:${DEST}/data/test/"
 
-echo "==> Syncing live web page"
-rsync -avz ${DRY_RUN} "${RSYNC_SSH[@]}" \
-  "${WEB_DIR}/index.html" "${REMOTE}:${DEST}/artifacts/index.html"
-
 if [[ -n "${ORT_ROOT}" ]]; then
   ORT_ROOT="${REPO_ROOT}/${ORT_ROOT}"
   if [[ ! -d "${ORT_ROOT}/lib" ]]; then
@@ -175,6 +168,6 @@ echo "  export LD_LIBRARY_PATH=\"\$PWD/lib:\${LD_LIBRARY_PATH}\""
 echo "  ./bin/phc_evaluate_mobilenet ./model/mobilenet_v3_3cls.onnx ./data/test"
 echo ""
 echo "Live preview (on the Pi):"
-echo "  ./bin/live_infer_web ./model/mobilenet_v3_3cls.onnx ./artifacts"
-echo "  python3 -m http.server 8080 --bind 0.0.0.0 --directory ./artifacts"
+echo "  ./bin/live_infer_web ./model/mobilenet_v3_3cls.onnx --port 8080"
+echo "  # then open http://<pi>:8080/ in a browser"
 

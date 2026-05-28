@@ -6,7 +6,7 @@ Executable tools today:
 
 - **`phc_infer_mobilenet`** — single-image inference (ORT forward pass).
 - **`phc_evaluate_mobilenet`** — batch evaluation on `healthy/` / `diseased/` / `background/` folders (metrics + timing).
-- **`live_infer_web`** (optional, `-DENABLE_LIBCAMERA=ON`) — live camera + inference + `preview.jpg` / `result.json` for a static browser UI.
+- **`live_infer_web`** (optional, `-DENABLE_LIBCAMERA=ON`) — live camera + inference + in-process HTTP server streaming the preview as MJPEG and inference results over Server-Sent Events.
 
 Shared preprocessing and ONNX Runtime wiring live under **`src/preprocess`**, **`src/inference_ort`**, and related modules.
 
@@ -177,7 +177,7 @@ Build and run with the **same ONNX Runtime major version** at link time and runt
 
 ## 8. Web live preview (headless Pi, file artifacts)
 
-**`live_infer_web`** runs the live camera pipeline and writes JPEG + JSON for [`web/live/index.html`](../web/live/index.html).
+**`live_infer_web`** runs the live camera pipeline and serves a self-contained web UI directly from the binary. [`web/live/index.html`](../web/live/index.html) is embedded at build time (see [`cmake/embed_html.cmake`](cmake/embed_html.cmake)).
 
 **Build** (needs libcamera):
 
@@ -186,34 +186,27 @@ cmake -B build -S . -DENABLE_LIBCAMERA=ON
 cmake --build build
 ```
 
-**Run** on the Pi (writes into the directory you choose):
+**Run** on the Pi:
 
 ```bash
 export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
-./build/live_infer_web /path/to/mobilenet_v3.onnx /var/lib/phc/live
+./build/live_infer_web /path/to/mobilenet_v3.onnx --port 8080
 ```
 
-**Artifacts** (atomic publish: JPEG first, then JSON):
+Then open `http://<pi>:8080/` in a browser.
 
-| File | Content |
-|------|---------|
-| `preview.jpg` | RGB camera preview (JPEG) |
-| `result.json` | `timestamp_ns`, `label`, `label_name`, `confidence`, `logits`, `probabilities` |
+**HTTP surface**:
 
-Copy [`web/live/index.html`](../web/live/index.html) into that same directory (or serve a tree that contains both the HTML and the two files).
+| Endpoint | Content type | Purpose |
+|----------|--------------|---------|
+| `GET /` | `text/html` | Embedded live UI page |
+| `GET /stream.mjpg` | `multipart/x-mixed-replace; boundary=phcframe` | Live MJPEG preview, one part per frame |
+| `GET /events` | `text/event-stream` | SSE stream of inference result JSON (`timestamp_ns`, `label`, `label_name`, `confidence`, `logits`, `probabilities`) |
+| `GET /healthz` | `text/plain` | Liveness probe |
 
-**Serve** with any static file server; examples:
+**CLI flags**: `--port N` (default `8080`), `--bind HOST` (default `0.0.0.0`), `--jpeg-quality Q` (default `70`). The second positional argument is still accepted as a port for backward compatibility, but the old artifact-directory positional argument is gone.
 
-```bash
-# Python (bind all interfaces — use only on a trusted LAN)
-python3 -m http.server 8080 --bind 0.0.0.0 --directory /var/lib/phc/live
-```
-
-```bash
-# darkhttpd: darkhttpd /var/lib/phc/live --port 8080
-```
-
-For nginx, set `root` to the artifact directory and ensure `preview.jpg` and `result.json` are readable. Prefer firewall rules or binding to `127.0.0.1` plus SSH port-forwarding if the network is not trusted.
+The server is HTTP only; prefer firewall rules or binding to `127.0.0.1` plus SSH port-forwarding if the network is not trusted.
 
 ---
 
@@ -224,9 +217,12 @@ For nginx, set `root` to the artifact directory and ensure `preview.jpg` and `re
 | `src/mobilenet/` … | Preprocess, ORT run, console output helpers |
 | `tools/infer_mobilenet.cpp` | CLI: model + image or `--tensor-bin` (builds `phc_infer_mobilenet`) |
 | `tools/evaluate_mobilenet.cpp` | CLI: model + test folder, metrics (builds `phc_evaluate_mobilenet`) |
-| `src/display_file/file_artifact_display.*` | `IDisplay` writing `preview.jpg` + `result.json` |
-| `apps/live_infer_web/main.cpp` | Live pipeline + file artifacts (requires libcamera) |
-| `CMakeLists.txt` | ORT discovery, vendored stb include wiring, binaries |
+| `src/server_http/http_stream_server.*` | In-process HTTP server: MJPEG (`/stream.mjpg`) + SSE (`/events`) + embedded HTML (`/`) |
+| `src/server_http/http_stream_display.*` | `IDisplay` that JPEG-encodes each frame and pushes it to `HttpStreamServer` |
+| `apps/live_infer_web/main.cpp` | Live pipeline + in-process HTTP server (requires libcamera). Run with `--port N` |
+| `cmake/embed_html.cmake` | Generates `embedded_index_html.cpp` from `web/live/index.html` at build time |
+| `CMakeLists.txt` | ORT discovery, vendored stb + cpp-httplib includes, binaries |
 | `third_party/stb/` | Vendored `stb_image.h` and `stb_image_write.h` headers |
+| `third_party/cpp-httplib/` | Vendored `httplib.h` (MIT, pinned to v0.46.0) |
 
 Future work for your roadmap: **toolchain file** for cross-builds, expanded **test/** tree.

@@ -2,31 +2,27 @@
 
 #include "app_runtime/live_pipeline.hpp"
 #include "camera_libcamera/libcamera_camera.hpp"
-#include "display_file/file_artifact_display.hpp"
 #include "inference_ort/ort_engine.hpp"
 #include "preprocess/mobilenet_preprocess.hpp"
+#include "server_http/http_stream_display.hpp"
 
-#include <unistd.h>
 #include <chrono>
 #include <cstdlib>
-#include <filesystem>
 #include <thread>
 
 TEST_CASE("Pi smoke: start live pipeline briefly", "[pi][smoke]") {
-  // Raspberry Pi with camera. Requires PHC_MODEL_PATH. Writes artifacts to a temp dir (no display).
+  // Raspberry Pi with camera. Requires PHC_MODEL_PATH. Binds the HTTP server
+  // to an ephemeral port so the test never collides with a running daemon.
   const std::string model_path =
       std::getenv("PHC_MODEL_PATH") ? std::getenv("PHC_MODEL_PATH") : "";
   REQUIRE_FALSE(model_path.empty());
 
-  const std::filesystem::path out = std::filesystem::temp_directory_path() /
-                                    ("phc_smoke_" + std::to_string(::getpid()));
-  std::filesystem::create_directories(out);
-
   phc::LibcameraCamera cam(phc::LibcameraConfig{});
-  phc::FileArtifactDisplayConfig artifact_cfg;
-  artifact_cfg.output_dir = out.string();
-  artifact_cfg.min_publish_interval_ms = 100;
-  phc::FileArtifactDisplay disp(artifact_cfg);
+  phc::HttpStreamDisplayConfig disp_cfg;
+  disp_cfg.bind_host = "127.0.0.1";
+  disp_cfg.port = 0;  // ephemeral
+  disp_cfg.jpeg_quality = 70;
+  phc::HttpStreamDisplay disp(disp_cfg);
   phc::MobilenetPreprocessor pp;
   phc::OrtInferenceEngine engine(model_path);
 
@@ -36,10 +32,8 @@ TEST_CASE("Pi smoke: start live pipeline briefly", "[pi][smoke]") {
 
   phc::LivePipeline pipeline(cam, disp, pp, engine, cfg);
   REQUIRE(pipeline.Start());
+  REQUIRE(disp.bound_port() > 0);
   std::this_thread::sleep_for(std::chrono::seconds(2));
   pipeline.Stop();
-
-  std::error_code ec;
-  std::filesystem::remove_all(out, ec);
   SUCCEED();
 }

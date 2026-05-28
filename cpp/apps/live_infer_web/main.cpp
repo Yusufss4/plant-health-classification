@@ -1,35 +1,111 @@
-// Live camera -> preprocess -> inference -> JPEG + JSON artifacts for static web UI.
+// Live camera -> preprocess -> inference -> in-process HTTP server that
+// streams the preview as MJPEG and inference results over SSE.
 //
 // Build with:
 //   cmake -DENABLE_LIBCAMERA=ON ...
 //
-// Serve the artifact directory (and copy web/live/index.html there) with e.g.:
-//   python3 -m http.server 8080 --bind 0.0.0.0 --directory /path/to/artifacts
+// Run:
+//   ./live_infer_web <model.onnx> [--port N] [--bind HOST] [--jpeg-quality Q]
+//
+// Then open http://<host>:<port>/ in a browser.
 
 #include "../../src/app_runtime/live_pipeline.hpp"
 #include "../../src/camera_libcamera/libcamera_camera.hpp"
-#include "../../src/display_file/file_artifact_display.hpp"
 #include "../../src/inference_ort/ort_engine.hpp"
 #include "../../src/preprocess/mobilenet_preprocess.hpp"
+#include "../../src/server_http/http_stream_display.hpp"
 
 #include <chrono>
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
+#include <string>
 #include <thread>
 
+namespace {
+
+void PrintUsage(const char* argv0) {
+  std::cerr
+      << "Usage: " << argv0
+      << " <model.onnx> [--port N] [--bind HOST] [--jpeg-quality Q]\n"
+      << "       " << argv0 << " <model.onnx> <port>   (positional port, "
+      << "kept for backward compat)\n";
+}
+
+bool ParseInt(const std::string& s, int& out) {
+  try {
+    size_t pos = 0;
+    int v = std::stoi(s, &pos);
+    if (pos != s.size()) {
+      return false;
+    }
+    out = v;
+    return true;
+  } catch (...) {
+    return false;
+  }
+}
+
+}  // namespace
+
 int main(int argc, char** argv) {
-  if (argc < 2 || argc > 3) {
-    std::cerr << "Usage: " << argv[0] << " <model.onnx> [artifact_dir]\n";
+  if (argc < 2) {
+    PrintUsage(argv[0]);
     return 1;
   }
   const std::string model_path = argv[1];
 
-  phc::FileArtifactDisplayConfig artifact_cfg;
-  if (argc >= 3) {
-    artifact_cfg.output_dir = argv[2];
+  phc::HttpStreamDisplayConfig disp_cfg;
+
+  for (int i = 2; i < argc; ++i) {
+    const std::string a = argv[i];
+    auto need_value = [&](const char* flag) -> const char* {
+      if (i + 1 >= argc) {
+        std::cerr << "Missing value for " << flag << "\n";
+        return nullptr;
+      }
+      return argv[++i];
+    };
+    if (a == "--port") {
+      const char* v = need_value("--port");
+      if (!v) return 1;
+      if (!ParseInt(v, disp_cfg.port)) {
+        std::cerr << "Invalid --port value: " << v << "\n";
+        return 1;
+      }
+    } else if (a == "--bind") {
+      const char* v = need_value("--bind");
+      if (!v) return 1;
+      disp_cfg.bind_host = v;
+    } else if (a == "--jpeg-quality") {
+      const char* v = need_value("--jpeg-quality");
+      if (!v) return 1;
+      if (!ParseInt(v, disp_cfg.jpeg_quality)) {
+        std::cerr << "Invalid --jpeg-quality value: " << v << "\n";
+        return 1;
+      }
+    } else if (a == "-h" || a == "--help") {
+      PrintUsage(argv[0]);
+      return 0;
+    } else if (i == 2 && !a.empty() && a[0] != '-') {
+      // Backward-compat: second positional arg is the port (the old
+      // signature took an artifact directory here, but that's gone).
+      int p = 0;
+      if (!ParseInt(a, p)) {
+        std::cerr << "Unknown argument: " << a << "\n";
+        PrintUsage(argv[0]);
+        return 1;
+      }
+      disp_cfg.port = p;
+    } else {
+      std::cerr << "Unknown argument: " << a << "\n";
+      PrintUsage(argv[0]);
+      return 1;
+    }
   }
 
   phc::LibcameraCamera cam(phc::LibcameraConfig{});
-  phc::FileArtifactDisplay disp(artifact_cfg);
+  phc::HttpStreamDisplay disp(disp_cfg);
   phc::MobilenetPreprocessor pp;
   phc::OrtInferenceEngine engine(model_path);
 
@@ -43,7 +119,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  std::cout << "Writing preview + JSON to: " << artifact_cfg.output_dir << "\n";
+  std::cout << "Live preview ready: http://" << disp_cfg.bind_host << ":"
+            << disp.bound_port() << "/\n";
   std::cout << "Running. Press Ctrl+C to exit.\n";
   for (;;) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
