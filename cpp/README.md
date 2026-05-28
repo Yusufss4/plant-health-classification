@@ -201,7 +201,8 @@ Then open `http://<pi>:8080/` in a browser.
 |----------|--------------|---------|
 | `GET /` | `text/html` | Embedded live UI page |
 | `GET /stream.mjpg` | `multipart/x-mixed-replace; boundary=phcframe` | Live MJPEG preview, one part per frame |
-| `GET /events` | `text/event-stream` | SSE stream of inference result JSON (`timestamp_ns`, `label`, `label_name`, `confidence`, `logits`, `probabilities`) |
+| `GET /events` | `text/event-stream` | SSE stream of inference result JSON (`timestamp_ns`, `label`, `label_name`, `confidence`, `logits`, `probabilities`, `inference_ms`, `encode_ms`) |
+| `GET /metrics` | `application/json` | Pi system metrics for the live page (load average, memory, CPU temperature, CPU percent). Intended for ~1 Hz polling. Missing `/proc` or `/sys` fields are omitted, not faked |
 | `GET /healthz` | `text/plain` | Liveness probe |
 
 **CLI flags**: `--port N` (default `8080`), `--bind HOST` (default `0.0.0.0`), `--jpeg-quality Q` (default `70`). The second positional argument is still accepted as a port for backward compatibility, but the old artifact-directory positional argument is gone.

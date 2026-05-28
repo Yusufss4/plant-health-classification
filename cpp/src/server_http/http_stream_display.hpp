@@ -18,7 +18,7 @@ struct HttpStreamDisplayConfig {
   // Minimum gap between published frames (across the network). 0 means
   // "publish as fast as the pipeline produces them".
   int min_publish_interval_ms = 0;
-  int worker_threads = 2;
+  int worker_threads = 4;
   int sse_keepalive_seconds = 15;
 };
 

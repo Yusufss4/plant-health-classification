@@ -18,7 +18,7 @@ struct HttpStreamServerConfig {
   int port = 8080;
   // Cap concurrent worker threads. The Pi Zero 2W has four cores, but most of
   // them are busy with capture + inference; keep this small.
-  int worker_threads = 2;
+  int worker_threads = 4;
   // SSE keep-alive comment interval, sent when no new result arrives. Prevents
   // intermediaries (and some browsers) from closing an idle stream.
   int sse_keepalive_seconds = 15;
@@ -83,8 +83,25 @@ class HttpStreamServer {
   LatestJpeg latest_jpeg_;
   LatestResult latest_result_;
 
+  // Previous /proc/stat snapshot, used to compute cpu_percent across two
+  // successive /metrics requests. Guarded by cpu_mu_ (separate from mu_ so
+  // metrics polling cannot block the MJPEG/SSE producers).
+  struct CpuStatSnapshot {
+    uint64_t idle = 0;
+    uint64_t total = 0;
+    bool valid = false;
+  };
+  std::mutex cpu_mu_;
+  CpuStatSnapshot cpu_prev_;
+
   std::thread listen_thread_;
   std::atomic<bool> running_{false};
+
+  // Builds the GET /metrics JSON. Reads /proc/loadavg, /proc/meminfo,
+  // /sys/class/thermal/thermal_zone0/temp, and snapshots /proc/stat to
+  // compute cpu_percent across requests. Any source that fails to read is
+  // simply omitted from the JSON.
+  std::string BuildMetricsJson();
 
   // Helpers used by the impl/handlers.
   friend struct Impl;

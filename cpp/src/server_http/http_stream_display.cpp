@@ -104,16 +104,24 @@ bool HttpStreamDisplay::Present(const Frame& rgb888,
   // headroom for quality 70 on natural images; expanding on demand is fine.
   jpeg.reserve(static_cast<size_t>(packed_stride) *
                static_cast<size_t>(h) / 16);
+  const auto enc_t0 = std::chrono::steady_clock::now();
   if (!stbi_write_jpg_to_func(StbWriteToVector, &jpeg, w, h, 3,
                               static_cast<const void*>(pixels), q)) {
     return false;
   }
+  const auto enc_t1 = std::chrono::steady_clock::now();
 
   const uint64_t ts =
       rgb888.timestamp_ns != 0 ? rgb888.timestamp_ns
                                : static_cast<uint64_t>(now_ns);
   server_->PublishFrame(std::move(jpeg), ts);
-  server_->PublishResult(result);
+
+  // Stamp encode_ms on a local copy so the const& parameter contract is kept
+  // and the rest of the result (which the LivePipeline owns) is unchanged.
+  InferenceResult annotated = result;
+  annotated.encode_ms =
+      std::chrono::duration<float, std::milli>(enc_t1 - enc_t0).count();
+  server_->PublishResult(annotated);
 
   last_publish_ns_ = now_ns;
   return true;

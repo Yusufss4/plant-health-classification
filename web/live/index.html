@@ -83,6 +83,13 @@
     tr[data-class="diseased"]   td.bar > div { background: var(--diseased); }
     tr[data-class="background"] td.bar > div { background: var(--background); }
     #ts { margin-top: 0.5rem; color: var(--muted); font-size: 0.8rem; }
+    #perf {
+      margin-top: 0.5rem;
+      color: var(--muted);
+      font: 0.8rem ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      white-space: pre;
+      line-height: 1.35;
+    }
   </style>
 </head>
 <body>
@@ -102,6 +109,7 @@
   </table>
 
   <div id="ts"></div>
+  <pre id="perf"></pre>
   <div id="error"></div>
 
   <!--
@@ -191,6 +199,9 @@
           setProbs(j.probabilities);
         }
 
+        if (typeof j.inference_ms === 'number') lastInferenceMs = j.inference_ms;
+        if (typeof j.encode_ms === 'number') lastEncodeMs = j.encode_ms;
+
         document.getElementById('ts').textContent = fmtTs(j.timestamp_ns);
         errEl.textContent = '';
       } catch (e) {
@@ -198,8 +209,22 @@
       }
     }
 
+    // Rolling 1-second window of SSE event timestamps. Used as the FPS
+    // counter; the SSE rate equals the pipeline publish rate because the
+    // server only emits one message per InferenceResult.
+    const evWindow = [];
+    let lastInferenceMs = 0;
+    let lastEncodeMs = 0;
+
+    function recordEvent() {
+      const now = performance.now();
+      evWindow.push(now);
+      while (evWindow.length && now - evWindow[0] > 1000) evWindow.shift();
+    }
+
     const es = new EventSource('/events');
     es.onmessage = (ev) => {
+      recordEvent();
       let j;
       try { j = JSON.parse(ev.data); } catch (e) {
         document.getElementById('error').textContent = 'bad event payload: ' + e;
@@ -211,6 +236,38 @@
       document.getElementById('error').textContent =
         'event stream disconnected (browser will retry automatically)';
     };
+
+    // 1 Hz updater for the perf panel. Polls /metrics for system state and
+    // composes a small monospace block. All DOM writes here happen once per
+    // second, regardless of camera frame rate, so this loop adds no per-
+    // frame cost.
+    let lastMetrics = null;
+    const SSE_STATE = { 0: 'connecting', 1: 'open', 2: 'closed' };
+
+    async function refreshPerf() {
+      try {
+        const r = await fetch('/metrics', { cache: 'no-store' });
+        if (r.ok) lastMetrics = await r.json();
+      } catch (_) { /* keep last */ }
+
+      const stateText = SSE_STATE[es.readyState] || '?';
+      const fps = evWindow.length;
+      const m = lastMetrics || {};
+      const lines = [
+        `FPS: ${String(fps).padStart(4)}     SSE: ${stateText}`,
+        `inf: ${lastInferenceMs.toFixed(1).padStart(6)} ms   enc: ${lastEncodeMs.toFixed(1).padStart(6)} ms`,
+      ];
+      const hasSys = m.cpu_percent != null || m.cpu_temp_c != null || m.mem_used_pct != null;
+      if (hasSys) {
+        const cpu  = m.cpu_percent != null ? m.cpu_percent.toFixed(0).padStart(3) + '%' : ' -- ';
+        const temp = m.cpu_temp_c  != null ? m.cpu_temp_c.toFixed(1) + 'C'              : ' -- ';
+        const mem  = m.mem_used_pct != null ? m.mem_used_pct.toFixed(0).padStart(3) + '%' : ' -- ';
+        lines.push(`CPU: ${cpu}   T: ${temp}   MEM: ${mem}`);
+      }
+      document.getElementById('perf').textContent = lines.join('\n');
+    }
+    setInterval(refreshPerf, 1000);
+    refreshPerf();
   </script>
 </body>
 </html>
