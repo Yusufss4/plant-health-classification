@@ -5,10 +5,14 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
+#include <cstdint>
 #include <fstream>
 #include <iostream>
 #include <vector>
+
+#if defined(__aarch64__)
+#include <arm_neon.h>
+#endif
 
 namespace phc {
 namespace {
@@ -16,72 +20,86 @@ namespace {
 constexpr float kMean[3] = {0.485f, 0.456f, 0.406f};
 constexpr float kStd[3] = {0.229f, 0.224f, 0.225f};
 
-inline float Lerp(float a, float b, float t) {
-  return a + (b - a) * t;
-}
+// Per-channel constants folding /255 and ImageNet normalize into one FMA:
+//   normalized = raw * inv255_over_std + neg_mean_over_std   (raw in [0,255]).
+struct NormConsts {
+  float inv[4];  // lane 3 unused (padding for NEON)
+  float neg[4];
+};
 
-void ResizeBilinearRgb(const uint8_t* src, int sw, int sh, int src_stride_bytes,
-                       uint8_t* dst, int dw, int dh) {
-  // src assumed tightly packed RGB888 per row (stride may include padding).
-  for (int y = 0; y < dh; ++y) {
-    const float sy = (static_cast<float>(y) + 0.5f) * static_cast<float>(sh) /
-                         static_cast<float>(dh) -
-                     0.5f;
-    int y0 = static_cast<int>(std::floor(sy));
-    y0 = std::clamp(y0, 0, sh - 1);
-    const int y1 = std::min(y0 + 1, sh - 1);
-    const float fy = sy - static_cast<float>(y0);
-
-    const uint8_t* row0 = src + y0 * src_stride_bytes;
-    const uint8_t* row1 = src + y1 * src_stride_bytes;
-    for (int x = 0; x < dw; ++x) {
-      const float sx = (static_cast<float>(x) + 0.5f) * static_cast<float>(sw) /
-                           static_cast<float>(dw) -
-                       0.5f;
-      int x0 = static_cast<int>(std::floor(sx));
-      x0 = std::clamp(x0, 0, sw - 1);
-      const int x1 = std::min(x0 + 1, sw - 1);
-      const float fx = sx - static_cast<float>(x0);
-
-      const uint8_t* p00 = row0 + x0 * 3;
-      const uint8_t* p01 = row0 + x1 * 3;
-      const uint8_t* p10 = row1 + x0 * 3;
-      const uint8_t* p11 = row1 + x1 * 3;
-      uint8_t* out = dst + (y * dw + x) * 3;
-      for (int c = 0; c < 3; ++c) {
-        const float v00 = static_cast<float>(p00[c]);
-        const float v01 = static_cast<float>(p01[c]);
-        const float v10 = static_cast<float>(p10[c]);
-        const float v11 = static_cast<float>(p11[c]);
-        const float v0 = Lerp(v00, v01, fx);
-        const float v1 = Lerp(v10, v11, fx);
-        const float v = Lerp(v0, v1, fy);
-        out[c] = static_cast<uint8_t>(std::round(v));
-      }
-    }
-  }
-}
-
-void PreprocessRgbToNchw(const uint8_t* rgb224, std::vector<float>& nchw) {
-  constexpr size_t n = 1 * 3 * MobilenetPreprocessor::kInputSize *
-                       MobilenetPreprocessor::kInputSize;
-  nchw.resize(n);
-  const int s = MobilenetPreprocessor::kInputSize;
+inline NormConsts MakeNormConsts() {
+  NormConsts n{};
   for (int c = 0; c < 3; ++c) {
-    for (int y = 0; y < s; ++y) {
-      for (int x = 0; x < s; ++x) {
-        float px = static_cast<float>(rgb224[(y * s + x) * 3 + c]) / 255.0f;
-        px = (px - kMean[c]) / kStd[c];
-        nchw[static_cast<size_t>(c * s * s + y * s + x)] = px;
-      }
-    }
+    n.inv[c] = 1.0f / (255.0f * kStd[c]);
+    n.neg[c] = -kMean[c] / kStd[c];
   }
+  n.inv[3] = 0.0f;
+  n.neg[3] = 0.0f;
+  return n;
+}
+
+// Bilinear-sample tap: integer neighbor indices + fractional weight per axis.
+struct Tap {
+  int i0;
+  int i1;
+  float frac;
+};
+
+// Precompute taps for one axis. Matches the original floor()+clamp behavior:
+// for the sampling formula sx > -0.5 always holds, so a truncating cast plus
+// clamp reproduces floor() exactly while skipping the std::floor call.
+void BuildTaps(int dst_len, int src_len, std::vector<Tap>& taps) {
+  taps.resize(static_cast<size_t>(dst_len));
+  const float scale = static_cast<float>(src_len) / static_cast<float>(dst_len);
+  for (int i = 0; i < dst_len; ++i) {
+    const float s = (static_cast<float>(i) + 0.5f) * scale - 0.5f;
+    int i0 = static_cast<int>(s);
+    i0 = std::clamp(i0, 0, src_len - 1);
+    const int i1 = std::min(i0 + 1, src_len - 1);
+    taps[static_cast<size_t>(i)] = {i0, i1, s - static_cast<float>(i0)};
+  }
+}
+
+// Normalize one interpolated RGB triplet (dst channel order) and scatter into
+// the three planar destinations.
+inline void NormalizeStore(const float p00[3], const float p01[3],
+                           const float p10[3], const float p11[3], float fx,
+                           float fy, const NormConsts& nc, float* d0, float* d1,
+                           float* d2) {
+#if defined(__aarch64__)
+  const float a00[4] = {p00[0], p00[1], p00[2], 0.0f};
+  const float a01[4] = {p01[0], p01[1], p01[2], 0.0f};
+  const float a10[4] = {p10[0], p10[1], p10[2], 0.0f};
+  const float a11[4] = {p11[0], p11[1], p11[2], 0.0f};
+  const float32x4_t v00 = vld1q_f32(a00);
+  const float32x4_t v01 = vld1q_f32(a01);
+  const float32x4_t v10 = vld1q_f32(a10);
+  const float32x4_t v11 = vld1q_f32(a11);
+  const float32x4_t r0 = vfmaq_n_f32(v00, vsubq_f32(v01, v00), fx);
+  const float32x4_t r1 = vfmaq_n_f32(v10, vsubq_f32(v11, v10), fx);
+  const float32x4_t v = vfmaq_n_f32(r0, vsubq_f32(r1, r0), fy);
+  const float32x4_t out =
+      vfmaq_f32(vld1q_f32(nc.neg), v, vld1q_f32(nc.inv));
+  float o[4];
+  vst1q_f32(o, out);
+  *d0 = o[0];
+  *d1 = o[1];
+  *d2 = o[2];
+#else
+  float* dst[3] = {d0, d1, d2};
+  for (int c = 0; c < 3; ++c) {
+    const float v0 = p00[c] + (p01[c] - p00[c]) * fx;
+    const float v1 = p10[c] + (p11[c] - p10[c]) * fx;
+    const float v = v0 + (v1 - v0) * fy;
+    *dst[c] = v * nc.inv[c] + nc.neg[c];
+  }
+#endif
 }
 
 }  // namespace
 
-bool MobilenetPreprocessor::Run(const Frame& frame_rgb888,
-                                TensorF32& out) const {
+bool MobilenetPreprocessor::RunInto(const Frame& frame_rgb888, float* dst_nchw,
+                                    bool swap_rb) const {
   if (frame_rgb888.format != PixelFormat::Rgb888) {
     return false;
   }
@@ -91,23 +109,72 @@ bool MobilenetPreprocessor::Run(const Frame& frame_rgb888,
   if (frame_rgb888.stride_bytes < frame_rgb888.width * 3) {
     return false;
   }
+  if (dst_nchw == nullptr) {
+    return false;
+  }
 
-  std::vector<uint8_t> resized(
-      static_cast<size_t>(3 * kInputSize * kInputSize));
-  ResizeBilinearRgb(frame_rgb888.data.data(), frame_rgb888.width,
-                    frame_rgb888.height, frame_rgb888.stride_bytes,
-                    resized.data(), kInputSize, kInputSize);
+  const int s = kInputSize;
+  const int sw = frame_rgb888.width;
+  const int sh = frame_rgb888.height;
+  const int src_stride = frame_rgb888.stride_bytes;
+  const uint8_t* src = frame_rgb888.data.data();
 
+  const NormConsts nc = MakeNormConsts();
+
+  std::vector<Tap> tx, ty;
+  BuildTaps(s, sw, tx);
+  BuildTaps(s, sh, ty);
+
+  // Map dst channel -> source channel (handles optional R/B swap).
+  const int ch[3] = {swap_rb ? 2 : 0, 1, swap_rb ? 0 : 2};
+
+  const size_t plane = static_cast<size_t>(s) * static_cast<size_t>(s);
+  float* d0 = dst_nchw;
+  float* d1 = dst_nchw + plane;
+  float* d2 = dst_nchw + 2 * plane;
+
+  for (int y = 0; y < s; ++y) {
+    const Tap& ty_t = ty[static_cast<size_t>(y)];
+    const uint8_t* row0 = src + static_cast<size_t>(ty_t.i0) * src_stride;
+    const uint8_t* row1 = src + static_cast<size_t>(ty_t.i1) * src_stride;
+    const float fy = ty_t.frac;
+    const size_t row_off = static_cast<size_t>(y) * static_cast<size_t>(s);
+
+    for (int x = 0; x < s; ++x) {
+      const Tap& tx_t = tx[static_cast<size_t>(x)];
+      const int x0 = tx_t.i0 * 3;
+      const int x1 = tx_t.i1 * 3;
+      const float fx = tx_t.frac;
+
+      float p00[3], p01[3], p10[3], p11[3];
+      for (int c = 0; c < 3; ++c) {
+        const int sc = ch[c];
+        p00[c] = static_cast<float>(row0[x0 + sc]);
+        p01[c] = static_cast<float>(row0[x1 + sc]);
+        p10[c] = static_cast<float>(row1[x0 + sc]);
+        p11[c] = static_cast<float>(row1[x1 + sc]);
+      }
+
+      const size_t idx = row_off + static_cast<size_t>(x);
+      NormalizeStore(p00, p01, p10, p11, fx, fy, nc, d0 + idx, d1 + idx,
+                     d2 + idx);
+    }
+  }
+  return true;
+}
+
+bool MobilenetPreprocessor::Run(const Frame& frame_rgb888,
+                                TensorF32& out) const {
   out.n = 1;
   out.c = 3;
   out.h = kInputSize;
   out.w = kInputSize;
-  PreprocessRgbToNchw(resized.data(), out.data);
-  return true;
+  out.data.resize(static_cast<size_t>(3 * kInputSize * kInputSize));
+  return RunInto(frame_rgb888, out.data.data(), /*swap_rb=*/false);
 }
 
-bool MobilenetPreprocessor::ImageFileToTensorNchw(const std::string& path,
-                                                  TensorF32& out) const {
+bool MobilenetPreprocessor::ImageFileToTensorInto(const std::string& path,
+                                                  float* dst_nchw) const {
   int w = 0, h = 0, comp = 0;
   unsigned char* data = stbi_load(path.c_str(), &w, &h, &comp, 3);
   if (!data) {
@@ -122,11 +189,21 @@ bool MobilenetPreprocessor::ImageFileToTensorNchw(const std::string& path,
   f.stride_bytes = w * 3;
   f.data.assign(data, data + static_cast<size_t>(w * h * 3));
   stbi_image_free(data);
-  return Run(f, out);
+  return RunInto(f, dst_nchw, /*swap_rb=*/false);
 }
 
-bool MobilenetPreprocessor::LoadTensorBin(const std::string& path,
-                                          TensorF32& out) const {
+bool MobilenetPreprocessor::ImageFileToTensorNchw(const std::string& path,
+                                                  TensorF32& out) const {
+  out.n = 1;
+  out.c = 3;
+  out.h = kInputSize;
+  out.w = kInputSize;
+  out.data.resize(static_cast<size_t>(3 * kInputSize * kInputSize));
+  return ImageFileToTensorInto(path, out.data.data());
+}
+
+bool MobilenetPreprocessor::LoadTensorBinInto(const std::string& path,
+                                              float* dst_nchw) const {
   std::ifstream f(path, std::ios::binary | std::ios::ate);
   if (!f) {
     std::cerr << "Cannot open " << path << "\n";
@@ -139,14 +216,19 @@ bool MobilenetPreprocessor::LoadTensorBin(const std::string& path,
     std::cerr << "Expected " << expected << " bytes, got " << bytes << "\n";
     return false;
   }
+  f.read(reinterpret_cast<char*>(dst_nchw),
+         static_cast<std::streamsize>(bytes));
+  return static_cast<bool>(f);
+}
+
+bool MobilenetPreprocessor::LoadTensorBin(const std::string& path,
+                                          TensorF32& out) const {
   out.n = 1;
   out.c = 3;
   out.h = kInputSize;
   out.w = kInputSize;
-  out.data.resize(1 * 3 * kInputSize * kInputSize);
-  f.read(reinterpret_cast<char*>(out.data.data()),
-         static_cast<std::streamsize>(bytes));
-  return static_cast<bool>(f);
+  out.data.resize(static_cast<size_t>(1 * 3 * kInputSize * kInputSize));
+  return LoadTensorBinInto(path, out.data.data());
 }
 
 }  // namespace phc

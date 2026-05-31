@@ -225,11 +225,8 @@ int main(int argc, char** argv) {
   phc::OrtInferenceEngine engine(model_path);
 
   // Warm-up (ORT thread pools, caches)
-  {
-    phc::TensorF32 t;
-    if (pp.ImageFileToTensorNchw(items[0].path, t)) {
-      (void)engine.Run(t);
-    }
+  if (pp.ImageFileToTensorInto(items[0].path, engine.input_data())) {
+    (void)engine.Run();
   }
 
   const size_t k = ClassNames().size();
@@ -239,12 +236,11 @@ int main(int argc, char** argv) {
   const auto t0 = std::chrono::high_resolution_clock::now();
 
   for (const auto& item : items) {
-    phc::TensorF32 t;
-    if (!pp.ImageFileToTensorNchw(item.path, t)) {
+    if (!pp.ImageFileToTensorInto(item.path, engine.input_data())) {
       std::cerr << "Skip: " << item.path << "\n";
       continue;
     }
-    phc::InferenceResult r = engine.Run(t);
+    const phc::InferenceResult& r = engine.Run();
     if (r.logits.size() < 2) {
       std::cerr << "Bad output size: " << r.logits.size() << "\n";
       continue;

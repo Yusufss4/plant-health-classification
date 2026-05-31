@@ -67,11 +67,12 @@ void LivePipeline::WorkerLoop() {
     }
 
     if (frame->format == PixelFormat::Rgb888) {
-      TensorF32 t;
-      if (preprocess_.Run(*frame, t)) {
+      // Fused preprocessing writes straight into the engine's pre-bound input
+      // buffer; Run() then executes over the bound I/O (no per-frame allocs).
+      if (preprocess_.RunInto(*frame, engine_.input_data())) {
         const auto t0 = std::chrono::steady_clock::now();
         try {
-          latest_result_ = engine_.Run(t, frame->timestamp_ns);
+          latest_result_ = engine_.Run(frame->timestamp_ns);
           const auto t1 = std::chrono::steady_clock::now();
           latest_result_.inference_ms =
               std::chrono::duration<float, std::milli>(t1 - t0).count();
