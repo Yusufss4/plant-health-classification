@@ -12,7 +12,7 @@ find_package(Threads REQUIRED)
 if(NOT DEFINED ENV{ONNXRUNTIME_ROOT})
   message(FATAL_ERROR
     "ONNXRUNTIME_ROOT is not set. Extract the ONNX Runtime release tarball and point to it, e.g.:\n"
-    "  export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-1.17.3\n"
+    "  export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-1.24.4\n"
     "Or run: bash ../scripts/download_onnxruntime.sh"
   )
 endif()

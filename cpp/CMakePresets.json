@@ -9,20 +9,20 @@
     {
       "name": "local-base",
       "displayName": "Local (linux-x64) — base",
-      "description": "Native build; ONNXRUNTIME_ROOT defaults to third_party linux-x64 (1.17.3).",
+      "description": "Native build; ONNXRUNTIME_ROOT defaults to third_party linux-x64 (1.24.4).",
       "binaryDir": "${sourceDir}/build/local",
       "toolchainFile": "${sourceDir}/toolchains/gcc/toolchain.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       },
       "environment": {
-        "ONNXRUNTIME_ROOT": "${sourceDir}/../third_party/onnxruntime/onnxruntime-linux-x64-1.17.3"
+        "ONNXRUNTIME_ROOT": "${sourceDir}/../third_party/onnxruntime/onnxruntime-linux-x64-1.24.4"
       }
     },
     {
       "name": "rpi-zero2w-base",
       "displayName": "Raspberry Pi Zero 2 W (aarch64 cross) — base",
-      "description": "aarch64-linux-gnu cross build; ONNXRUNTIME_ROOT defaults to third_party linux-aarch64 (1.17.3).",
+      "description": "aarch64-linux-gnu cross build; ONNXRUNTIME_ROOT defaults to third_party linux-aarch64 (1.24.4).",
       "binaryDir": "${sourceDir}/build/rpi-zero2w",
       "toolchainFile": "${sourceDir}/toolchains/rpi-aarch64/toolchain.cmake",
       "cacheVariables": {
@@ -31,7 +31,7 @@
         "ENABLE_TESTS": "ON"
       },
       "environment": {
-        "ONNXRUNTIME_ROOT": "${sourceDir}/../third_party/onnxruntime/onnxruntime-linux-aarch64-1.17.3"
+        "ONNXRUNTIME_ROOT": "${sourceDir}/../third_party/onnxruntime/onnxruntime-linux-aarch64-1.24.4"
       }
     },
     {

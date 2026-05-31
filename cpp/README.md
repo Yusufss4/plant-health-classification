@@ -75,7 +75,7 @@ Use this to iterate **without** the Pi: same ONNX file, same preprocessing contr
 
    ```bash
    bash scripts/download_onnxruntime.sh linux-x64
-   export ONNXRUNTIME_ROOT="$(pwd)/third_party/onnxruntime/onnxruntime-linux-x64-1.17.3"
+   export ONNXRUNTIME_ROOT="$(pwd)/third_party/onnxruntime/onnxruntime-linux-x64-1.24.4"
    ```
 
    Adjust the path if your version differs.
@@ -161,7 +161,7 @@ On **64-bit** Raspberry Pi OS (aarch64):
 
 ```bash
 bash scripts/download_onnxruntime.sh linux-aarch64
-export ONNXRUNTIME_ROOT="$(pwd)/third_party/onnxruntime/onnxruntime-linux-aarch64-1.17.3"
+export ONNXRUNTIME_ROOT="$(pwd)/third_party/onnxruntime/onnxruntime-linux-aarch64-1.24.4"
 cd cpp && cmake -B build -S . && cmake --build build
 export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
 ./build/phc_infer_mobilenet ../checkpoints/mobilenet_v3.onnx /path/to/leaf.jpg
