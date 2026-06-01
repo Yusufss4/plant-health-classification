@@ -144,12 +144,11 @@ void OrtInferenceEngine::FillResult(uint64_t timestamp_ns) {
     result_.probabilities[i] = e;
     sum += e;
   }
+  const float inv_sum = sum > 0.0f ? 1.0f / sum : 0.0f;
   int best = 0;
-  float best_v = result_.probabilities[0];
+  float best_v = -1.0f;
   for (size_t i = 0; i < n; ++i) {
-    if (sum > 0.0f) {
-      result_.probabilities[i] /= sum;
-    }
+    result_.probabilities[i] *= inv_sum;
     if (result_.probabilities[i] > best_v) {
       best_v = result_.probabilities[i];
       best = static_cast<int>(i);
