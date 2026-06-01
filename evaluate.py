@@ -66,7 +66,7 @@ def load_model(model_type, weights_path, device):
                 f'CLI --model={model_type!r}; using CLI.'
             )
 
-    model = build_model(model_type, num_classes=num_classes)
+    model = build_model(model_type, num_classes=num_classes, pretrained=False)
     model.load_state_dict(state_dict)
 
     if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:

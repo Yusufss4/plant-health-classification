@@ -16,10 +16,8 @@ from .evaluation import (
     print_evaluation_results,
     plot_confusion_matrix,
     plot_training_history,
-    compare_models,
     calculate_metrics_per_epoch,
     plot_comprehensive_evaluation,
-    compare_models_comprehensive
 )
 
 __all__ = [
@@ -33,8 +31,6 @@ __all__ = [
     'print_evaluation_results',
     'plot_confusion_matrix',
     'plot_training_history',
-    'compare_models',
     'calculate_metrics_per_epoch',
     'plot_comprehensive_evaluation',
-    'compare_models_comprehensive'
 ]

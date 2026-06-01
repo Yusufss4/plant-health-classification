@@ -17,10 +17,6 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix,
     classification_report,
-    precision_recall_curve,
-    average_precision_score,
-    roc_curve,
-    auc,
     balanced_accuracy_score,
     matthews_corrcoef,
     roc_auc_score,
@@ -37,9 +33,10 @@ def evaluate_model(
     """
     Evaluate model on a dataset and return comprehensive metrics.
 
-    Works for both binary (2-class) and multi-class (3+) setups. Binary-only
-    fields (``true_positive``, ``specificity``, scalar ROC-AUC) are populated
-    only when ``len(class_names) == 2`` so legacy reports keep working.
+    Works for both binary (2-class) and multi-class (3+) setups. Per-class
+    confusion-matrix counts (``per_class_tp``/``fp``/``fn``/``tn``) are always
+    provided. Binary-only fields (``specificity``, scalar ROC-AUC) are
+    populated only when ``len(class_names) == 2`` so legacy reports keep working.
 
     Args:
         model: PyTorch model
@@ -55,6 +52,7 @@ def evaluate_model(
             - accuracy, balanced_accuracy, mcc
             - precision/recall/f1: scalar (binary) or macro-averaged (multi-class)
             - per_class_precision/recall/f1: arrays of length len(class_names)
+            - per_class_tp/fp/fn/tn: one-vs-rest counts per class
             - confusion_matrix (NxN)
             - inference_timing
             - probabilities, predictions, labels (raw arrays)
@@ -142,9 +140,16 @@ def evaluate_model(
     balanced_acc = balanced_accuracy_score(all_labels, all_predictions)
     mcc = matthews_corrcoef(all_labels, all_predictions)
 
-    # Binary-only convenience fields. Skipped for multi-class to avoid
-    # ambiguous semantics (e.g. "which class is the positive one?").
-    tp = tn = fp = fn = None
+    # Per-class confusion-matrix counts (one-vs-rest), valid for any class
+    # count. For class i: TP is the diagonal, FP the column sum minus the
+    # diagonal, FN the row sum minus the diagonal, TN the remainder.
+    diag = np.diag(cm)
+    per_class_tp = diag.astype(int)
+    per_class_fp = (cm.sum(axis=0) - diag).astype(int)
+    per_class_fn = (cm.sum(axis=1) - diag).astype(int)
+    per_class_tn = (cm.sum() - per_class_tp - per_class_fp - per_class_fn).astype(int)
+
+    # Binary-only convenience fields, kept for the legacy 2-class setup.
     specificity = None
     roc_auc = None
     if is_binary and cm.shape == (2, 2):
@@ -181,10 +186,10 @@ def evaluate_model(
         'mcc': mcc,
         'roc_auc': roc_auc,
         'confusion_matrix': cm,
-        'true_positive': int(tp) if tp is not None else None,
-        'true_negative': int(tn) if tn is not None else None,
-        'false_positive': int(fp) if fp is not None else None,
-        'false_negative': int(fn) if fn is not None else None,
+        'per_class_tp': per_class_tp.tolist(),
+        'per_class_fp': per_class_fp.tolist(),
+        'per_class_fn': per_class_fn.tolist(),
+        'per_class_tn': per_class_tn.tolist(),
         'classification_report': report,
         'predictions': all_predictions,
         'labels': all_labels,
@@ -245,12 +250,20 @@ def print_evaluation_results(results, class_names=None):
         row = f"{row_name:>{col_w}}  " + "".join(f"{int(cm[i, j]):>{col_w}}" for j in range(n_classes))
         print(row)
 
-    if is_binary and cm.shape == (2, 2):
-        tn, fp, fn, tp = cm.ravel()
-        print(f"\n  True Negatives (TN):  {tn}")
-        print(f"  False Positives (FP): {fp}")
-        print(f"  False Negatives (FN): {fn}")
-        print(f"  True Positives (TP):  {tp}")
+    per_class_tp = results.get('per_class_tp')
+    per_class_fp = results.get('per_class_fp')
+    per_class_fn = results.get('per_class_fn')
+    per_class_tn = results.get('per_class_tn')
+    if None not in (per_class_tp, per_class_fp, per_class_fn, per_class_tn):
+        print(f"\nPer-Class Counts (one-vs-rest):")
+        name_w = max(10, max(len(c) for c in class_names) + 2)
+        print(f"{'Class':>{name_w}}{'TP':>8}{'FP':>8}{'FN':>8}{'TN':>8}")
+        for i, class_name in enumerate(class_names):
+            print(
+                f"{class_name:>{name_w}}{int(per_class_tp[i]):>8}"
+                f"{int(per_class_fp[i]):>8}{int(per_class_fn[i]):>8}"
+                f"{int(per_class_tn[i]):>8}"
+            )
 
     print(f"\nPer-Class Metrics:")
     report = results['classification_report']
@@ -345,54 +358,6 @@ def plot_training_history(history, save_path=None):
     plt.close()  # Close the figure to free memory
 
 
-def compare_models(results1, results2, model1_name='Model 1', model2_name='Model 2'):
-    """
-    Compare two models' performance metrics.
-    
-    Args:
-        results1: Evaluation results for first model
-        results2: Evaluation results for second model
-        model1_name: Name of first model
-        model2_name: Name of second model
-    """
-    print("=" * 80)
-    print("MODEL COMPARISON")
-    print("=" * 80)
-    
-    metrics = ['accuracy', 'precision', 'recall', 'f1_score']
-    
-    print(f"\n{'Metric':<15} {model1_name:<20} {model2_name:<20} {'Improvement':<15}")
-    print("-" * 80)
-    
-    for metric in metrics:
-        val1 = results1[metric]
-        val2 = results2[metric]
-        improvement = ((val2 - val1) / val1) * 100 if val1 > 0 else 0
-        
-        print(f"{metric.capitalize():<15} {val1:.4f} ({val1*100:.2f}%){'':<6} "
-              f"{val2:.4f} ({val2*100:.2f}%){'':<6} "
-              f"{improvement:+.2f}%")
-    
-    print(f"\n{'Error Type':<30} {model1_name:<15} {model2_name:<15} {'Reduction':<15}")
-    print("-" * 80)
-    
-    cm1 = results1['confusion_matrix']
-    cm2 = results2['confusion_matrix']
-    
-    fp1 = cm1[0, 1]
-    fp2 = cm2[0, 1]
-    fp_reduction = ((fp1 - fp2) / fp1) * 100 if fp1 > 0 else 0
-    
-    fn1 = cm1[1, 0]
-    fn2 = cm2[1, 0]
-    fn_reduction = ((fn1 - fn2) / fn1) * 100 if fn1 > 0 else 0
-    
-    print(f"{'False Positives':<30} {fp1:<15} {fp2:<15} {fp_reduction:.1f}%")
-    print(f"{'False Negatives (CRITICAL)':<30} {fn1:<15} {fn2:<15} {fn_reduction:.1f}%")
-    
-    print("=" * 80)
-
-
 def calculate_metrics_per_epoch(model, dataloader, device):
     """
     Calculate metrics for a single epoch (used during training).
@@ -432,137 +397,6 @@ def calculate_metrics_per_epoch(model, dataloader, device):
     return avg_loss, accuracy
 
 
-def plot_metrics_vs_threshold(results, save_path=None):
-    """
-    Plot Precision, Recall, and F1-Score vs Classification Threshold.
-    
-    Args:
-        results: Evaluation results dictionary with probabilities
-        save_path: Optional path to save the figure
-    """
-    labels = results['labels']
-    # Use probability of positive class (diseased = class 1)
-    probs = results['probabilities'][:, 1]
-    
-    # Test different thresholds
-    thresholds = np.linspace(0, 1, 100)
-    precisions = []
-    recalls = []
-    f1_scores = []
-    
-    for threshold in thresholds:
-        preds = (probs >= threshold).astype(int)
-        
-        # Handle edge cases
-        if len(np.unique(preds)) < 2:
-            precisions.append(0)
-            recalls.append(0)
-            f1_scores.append(0)
-        else:
-            p = precision_score(labels, preds, zero_division=0)
-            r = recall_score(labels, preds, zero_division=0)
-            f1 = f1_score(labels, preds, zero_division=0)
-            precisions.append(p)
-            recalls.append(r)
-            f1_scores.append(f1)
-    
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-
-    axes[0].plot(thresholds, precisions, 'b-', linewidth=2)
-    axes[0].axvline(x=0.5, color='r', linestyle='--', alpha=0.5, label='Default (0.5)')
-    axes[0].set_xlabel('Classification Threshold', fontsize=12)
-    axes[0].set_ylabel('Precision', fontsize=12)
-    axes[0].set_title('Precision vs Threshold', fontsize=14, fontweight='bold')
-    axes[0].grid(True, alpha=0.3)
-    axes[0].legend()
-    axes[0].set_xlim([0, 1])
-    axes[0].set_ylim([0, 1.05])
-
-    axes[1].plot(thresholds, recalls, 'g-', linewidth=2)
-    axes[1].axvline(x=0.5, color='r', linestyle='--', alpha=0.5, label='Default (0.5)')
-    axes[1].set_xlabel('Classification Threshold', fontsize=12)
-    axes[1].set_ylabel('Recall', fontsize=12)
-    axes[1].set_title('Recall vs Threshold', fontsize=14, fontweight='bold')
-    axes[1].grid(True, alpha=0.3)
-    axes[1].legend()
-    axes[1].set_xlim([0, 1])
-    axes[1].set_ylim([0, 1.05])
-
-    axes[2].plot(thresholds, f1_scores, 'm-', linewidth=2)
-    axes[2].axvline(x=0.5, color='r', linestyle='--', alpha=0.5, label='Default (0.5)')
-    
-    # Mark optimal F1 threshold
-    optimal_idx = np.argmax(f1_scores)
-    optimal_threshold = thresholds[optimal_idx]
-    optimal_f1 = f1_scores[optimal_idx]
-    axes[2].plot(optimal_threshold, optimal_f1, 'r*', markersize=15, 
-                label=f'Optimal: {optimal_threshold:.2f} (F1={optimal_f1:.3f})')
-    
-    axes[2].set_xlabel('Classification Threshold', fontsize=12)
-    axes[2].set_ylabel('F1-Score', fontsize=12)
-    axes[2].set_title('F1-Score vs Threshold', fontsize=14, fontweight='bold')
-    axes[2].grid(True, alpha=0.3)
-    axes[2].legend()
-    axes[2].set_xlim([0, 1])
-    axes[2].set_ylim([0, 1.05])
-    
-    plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Metrics vs threshold plot saved to {save_path}")
-    
-    plt.close()  # Close the figure to free memory
-    
-    return optimal_threshold, optimal_f1
-
-
-def plot_precision_recall_curve(results, save_path=None):
-    """
-    Plot Precision-Recall (PR) Curve.
-    
-    Args:
-        results: Evaluation results dictionary with probabilities
-        save_path: Optional path to save the figure
-    """
-    labels = results['labels']
-    # Use probability of positive class (diseased = class 1)
-    probs = results['probabilities'][:, 1]
-    
-    precision, recall, thresholds = precision_recall_curve(labels, probs)
-    avg_precision = average_precision_score(labels, probs)
-
-    plt.figure(figsize=(10, 8))
-    plt.plot(recall, precision, 'b-', linewidth=2, label=f'PR Curve (AP = {avg_precision:.3f})')
-    plt.fill_between(recall, precision, alpha=0.2)
-    
-    # Add iso-F1 curves
-    f_scores = np.linspace(0.2, 0.9, num=8)
-    for f_score in f_scores:
-        x = np.linspace(0.01, 1)
-        y = f_score * x / (2 * x - f_score)
-        plt.plot(x[y >= 0], y[y >= 0], 'gray', alpha=0.3, linestyle='--', linewidth=0.8)
-        plt.annotate(f'F1={f_score:.1f}', xy=(0.9, f_score * 0.9 / (2 * 0.9 - f_score)), 
-                    fontsize=8, color='gray')
-    
-    plt.xlabel('Recall', fontsize=12)
-    plt.ylabel('Precision', fontsize=12)
-    plt.title('Precision-Recall Curve', fontsize=14, fontweight='bold')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.grid(True, alpha=0.3)
-    plt.legend(fontsize=12)
-    plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"PR curve saved to {save_path}")
-    
-    plt.close()  # Close the figure to free memory
-    
-    return avg_precision
-
-
 def plot_comprehensive_evaluation(results, model_name='Model', save_dir=None):
     """
     Create comprehensive evaluation plots for a model.
@@ -586,113 +420,16 @@ def plot_comprehensive_evaluation(results, model_name='Model', save_dir=None):
 
     print(f"\n1. Plotting Confusion Matrix for {model_name}...")
     cm_path = os.path.join(save_dir, f'{safe_model_name}_confusion_matrix.png') if save_dir else None
-    plot_confusion_matrix(results['confusion_matrix'], save_path=cm_path)
+    plot_confusion_matrix(
+        results['confusion_matrix'],
+        class_names=results['class_names'],
+        save_path=cm_path,
+    )
     if cm_path:
         plot_paths['confusion_matrix'] = cm_path
-    
-    print(f"\n2. Plotting Metrics vs Threshold for {model_name}...")
-    threshold_path = os.path.join(save_dir, f'{safe_model_name}_metrics_vs_threshold.png') if save_dir else None
-    optimal_threshold, optimal_f1 = plot_metrics_vs_threshold(results, save_path=threshold_path)
-    if threshold_path:
-        plot_paths['metrics_vs_threshold'] = threshold_path
-    
-    print(f"\n3. Plotting Precision-Recall Curve for {model_name}...")
-    pr_path = os.path.join(save_dir, f'{safe_model_name}_pr_curve.png') if save_dir else None
-    avg_precision = plot_precision_recall_curve(results, save_path=pr_path)
-    if pr_path:
-        plot_paths['pr_curve'] = pr_path
-    
-    print(f"\n✓ All plots generated for {model_name}")
-    print(f"  - Average Precision: {avg_precision:.3f}")
-    print(f"  - Optimal Threshold: {optimal_threshold:.3f} (F1={optimal_f1:.3f})")
+
+    print(f"\nAll plots generated for {model_name}")
     
     return plot_paths
-
-
-def compare_models_comprehensive(results1, results2, model1_name='Model 1',
-                                 model2_name='Model 2', save_dir=None):
-    """
-    Comprehensive comparison of two models with all metrics and plots.
-    
-    Args:
-        results1: Evaluation results for first model
-        results2: Evaluation results for second model
-        model1_name: Name of first model
-        model2_name: Name of second model
-        save_dir: Directory to save comparison plots
-    """
-    import os
-    
-    if save_dir:
-        os.makedirs(save_dir, exist_ok=True)
-    
-    print("\n" + "="*80)
-    print(f"COMPREHENSIVE MODEL COMPARISON: {model1_name} vs {model2_name}")
-    print("="*80)
-    
-    print(f"\n{model1_name} Results:")
-    print("-"*80)
-    print(f"Accuracy:  {results1['accuracy']:.4f} ({results1['accuracy']*100:.2f}%)")
-    print(f"Precision: {results1['precision']:.4f} ({results1['precision']*100:.2f}%)")
-    print(f"Recall:    {results1['recall']:.4f} ({results1['recall']*100:.2f}%)")
-    print(f"F1-Score:  {results1['f1_score']:.4f} ({results1['f1_score']*100:.2f}%)")
-    print(f"\nConfusion Matrix:")
-    print(f"  TP: {results1['true_positive']}, TN: {results1['true_negative']}")
-    print(f"  FP: {results1['false_positive']}, FN: {results1['false_negative']}")
-    
-    print(f"\n{model2_name} Results:")
-    print("-"*80)
-    print(f"Accuracy:  {results2['accuracy']:.4f} ({results2['accuracy']*100:.2f}%)")
-    print(f"Precision: {results2['precision']:.4f} ({results2['precision']*100:.2f}%)")
-    print(f"Recall:    {results2['recall']:.4f} ({results2['recall']*100:.2f}%)")
-    print(f"F1-Score:  {results2['f1_score']:.4f} ({results2['f1_score']*100:.2f}%)")
-    print(f"\nConfusion Matrix:")
-    print(f"  TP: {results2['true_positive']}, TN: {results2['true_negative']}")
-    print(f"  FP: {results2['false_positive']}, FN: {results2['false_negative']}")
-    
-    print(f"\n{'Metric':<20} {model1_name:<20} {model2_name:<20} {'Difference':<15}")
-    print("-"*80)
-    metrics = ['accuracy', 'precision', 'recall', 'f1_score']
-    for metric in metrics:
-        v1 = results1[metric]
-        v2 = results2[metric]
-        diff = v2 - v1
-        symbol = "+" if diff > 0 else ""
-        print(f"{metric.capitalize():<20} {v1*100:>6.2f}%{'':<13} {v2*100:>6.2f}%{'':<13} {symbol}{diff*100:>6.2f}%")
-    
-    print(f"\n{'Error Type':<20} {model1_name:<20} {model2_name:<20} {'Reduction':<15}")
-    print("-"*80)
-    fp_reduction = ((results1['false_positive'] - results2['false_positive']) / 
-                    results1['false_positive'] * 100) if results1['false_positive'] > 0 else 0
-    fn_reduction = ((results1['false_negative'] - results2['false_negative']) / 
-                    results1['false_negative'] * 100) if results1['false_negative'] > 0 else 0
-    
-    print(f"{'False Positives':<20} {results1['false_positive']:<20} {results2['false_positive']:<20} {fp_reduction:.1f}%")
-    print(f"{'False Negatives':<20} {results1['false_negative']:<20} {results2['false_negative']:<20} {fn_reduction:.1f}%")
-    
-    if save_dir:
-        fig, axes = plt.subplots(1, 2, figsize=(16, 6))
-
-        sns.heatmap(results1['confusion_matrix'], annot=True, fmt='d', cmap='Blues',
-                   xticklabels=['healthy', 'diseased'], yticklabels=['healthy', 'diseased'],
-                   ax=axes[0], cbar_kws={'label': 'Count'})
-        axes[0].set_ylabel('Actual', fontsize=12)
-        axes[0].set_xlabel('Predicted', fontsize=12)
-        axes[0].set_title(f'{model1_name}\nConfusion Matrix', fontsize=14, fontweight='bold')
-
-        sns.heatmap(results2['confusion_matrix'], annot=True, fmt='d', cmap='Greens',
-                   xticklabels=['healthy', 'diseased'], yticklabels=['healthy', 'diseased'],
-                   ax=axes[1], cbar_kws={'label': 'Count'})
-        axes[1].set_ylabel('Actual', fontsize=12)
-        axes[1].set_xlabel('Predicted', fontsize=12)
-        axes[1].set_title(f'{model2_name}\nConfusion Matrix', fontsize=14, fontweight='bold')
-        
-        plt.tight_layout()
-        comparison_path = os.path.join(save_dir, 'model_comparison_confusion_matrices.png')
-        plt.savefig(comparison_path, dpi=300, bbox_inches='tight')
-        print(f"\nComparison plot saved to {comparison_path}")
-        plt.close()  # Close the figure to free memory
-    
-    print("\n" + "="*80)
 
 
