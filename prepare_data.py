@@ -36,16 +36,14 @@ def _count_images(category_path: Path) -> int:
 
 def download_and_prepare_data(output_dir='data', seed=None):
     """
-    Download PlantVillage dataset and prepare it for binary classification.
+    Download PlantVillage and write healthy/diseased leaf splits (70/15/15).
 
     Args:
-        output_dir (str): Directory to save prepared data
-        seed (int, optional): RNG seed for reproducible train/val/test splits
+        output_dir: Directory to save prepared data.
+        seed: RNG seed for reproducible train/val/test splits.
 
-    The PlantVillage dataset contains 38 classes of plant diseases across 14 crop species.
-    Uses all plants with binary classification:
-    - healthy: All healthy plant classes
-    - diseased: All diseased plant classes
+    Maps PlantVillage labels to healthy vs diseased. For a third background class,
+    run ``prepare_background_data.py`` after this script.
     """
     if seed is not None:
         np.random.seed(seed)
@@ -56,7 +54,6 @@ def download_and_prepare_data(output_dir='data', seed=None):
     if seed is not None:
         print(f"Using random seed {seed} for train/val/test split")
 
-    # Download dataset
     print("\nDownloading dataset...")
     dataset, info = tfds.load(
         'plant_village',
@@ -70,7 +67,6 @@ def download_and_prepare_data(output_dir='data', seed=None):
     print(f"  Number of classes: {info.features['label'].num_classes}")
     print(f"  Class names: {info.features['label'].names[:5]}... (showing first 5)")
 
-    # Create output directories
     output_path = Path(output_dir)
     splits = ['train', 'val', 'test']
 
@@ -80,7 +76,6 @@ def download_and_prepare_data(output_dir='data', seed=None):
 
     print(f"\nPreparing binary classification (healthy vs diseased)...")
 
-    # Get class names
     class_names = info.features['label'].names
 
     # Use all plants - any class with 'healthy' is healthy, rest are diseased
@@ -90,7 +85,6 @@ def download_and_prepare_data(output_dir='data', seed=None):
     print(f"  Healthy classes: {len(healthy_classes)}")
     print(f"  Diseased classes: {len(diseased_classes)}")
 
-    # Process and save images
     counters = {split: {c: 0 for c in LEAF_CATEGORIES} for split in splits}
 
     print("\nProcessing images...")
@@ -100,7 +94,6 @@ def download_and_prepare_data(output_dir='data', seed=None):
 
         label_idx = int(label)
 
-        # Determine category (healthy or diseased)
         if label_idx in healthy_classes:
             category = 'healthy'
         elif label_idx in diseased_classes:
@@ -108,7 +101,6 @@ def download_and_prepare_data(output_dir='data', seed=None):
         else:
             continue  # Skip if not in our filtered classes
 
-        # Determine split (70% train, 15% val, 15% test)
         rand = np.random.random()
         if rand < 0.70:
             split = 'train'
@@ -117,7 +109,6 @@ def download_and_prepare_data(output_dir='data', seed=None):
         else:
             split = 'test'
 
-        # Save image
         img = Image.fromarray(image)
         img_filename = f"{class_names[label_idx]}_{counters[split][category]:05d}.jpg"
         img_path = output_path / split / category / img_filename
@@ -125,7 +116,6 @@ def download_and_prepare_data(output_dir='data', seed=None):
 
         counters[split][category] += 1
 
-    # Print statistics
     print("\n" + "=" * 80)
     print("Dataset preparation complete!")
     print("=" * 80)
@@ -193,7 +183,6 @@ def verify_data_structure(data_dir='data', require_background=False):
                     print(f"  ⚠️  {split}/{category} is empty")
                     all_good = False
 
-    # Optional background class (3-class model)
     background_ok = True
     for split in ('train', 'val', 'test'):
         bg_path = data_path / split / 'background'
@@ -264,7 +253,6 @@ def main():
         verify_data_structure(data_dir, require_background=args.require_background)
         return
 
-    # Check if data already exists
     if os.path.exists(data_dir) and any(Path(data_dir).iterdir()):
         print(f"\n⚠️  Data directory '{data_dir}' already exists.")
         response = input("Do you want to delete and re-download? (y/N): ")

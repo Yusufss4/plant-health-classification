@@ -3,6 +3,8 @@
 Save NCHW float32 tensor (same layout as cpp/infer_mobilenet --tensor-bin) and
 print ONNX Runtime logits — use to validate C++ preprocessing vs PyTorch pipeline.
 
+Tensor layout: NCHW float32, shape (1, 3, 224, 224), ImageNet-normalized.
+
 Usage:
   python scripts/dump_ort_reference.py --image path.jpg --onnx checkpoints/mobilenet_v3_3cls.onnx \\
       --tensor-out /tmp/mobilenet_input.bin
@@ -48,8 +50,8 @@ def main():
         ]
     )
     img = Image.open(args.image).convert("RGB")
-    t = tfm(img).numpy().astype(np.float32)  # 3,224,224
-    batch = np.expand_dims(t, axis=0)  # 1,3,224,224
+    t = tfm(img).numpy().astype(np.float32)
+    batch = np.expand_dims(t, axis=0)
     batch.tofile(args.tensor_out)
     print(f"Wrote {batch.shape} float32 tensor to {args.tensor_out}")
 

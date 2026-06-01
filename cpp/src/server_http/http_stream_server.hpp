@@ -37,22 +37,11 @@ class HttpStreamServer {
   HttpStreamServer(const HttpStreamServer&) = delete;
   HttpStreamServer& operator=(const HttpStreamServer&) = delete;
 
-  // Starts the listen thread. Blocks until the socket is bound (or fails).
-  // Returns false if bind() fails or the server is already running.
   bool Start();
-
-  // Stops accepting new connections, wakes blocked subscribers, and joins
-  // the listen thread. Safe to call multiple times.
   void Stop();
-
-  // Returns the port the server is actually listening on. Useful when
-  // cfg.port == 0 (ephemeral) for tests. Returns 0 if not bound.
   int bound_port() const { return bound_port_.load(); }
 
-  // Thread-safe. Takes ownership of jpeg via move.
   void PublishFrame(std::vector<uint8_t> jpeg, uint64_t timestamp_ns);
-
-  // Thread-safe. Serialises the result to JSON in the calling thread.
   void PublishResult(const InferenceResult& result);
 
  private:
@@ -97,13 +86,9 @@ class HttpStreamServer {
   std::thread listen_thread_;
   std::atomic<bool> running_{false};
 
-  // Builds the GET /metrics JSON. Reads /proc/loadavg, /proc/meminfo,
-  // /sys/class/thermal/thermal_zone0/temp, and snapshots /proc/stat to
-  // compute cpu_percent across requests. Any source that fails to read is
-  // simply omitted from the JSON.
+  // /proc and /sys readers; cpu_percent needs two successive /proc/stat samples.
   std::string BuildMetricsJson();
 
-  // Helpers used by the impl/handlers.
   friend struct Impl;
 };
 

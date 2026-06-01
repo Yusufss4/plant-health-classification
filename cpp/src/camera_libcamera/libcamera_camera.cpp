@@ -26,6 +26,7 @@ namespace phc {
 
 namespace {
 
+// libcamera viewfinder often delivers R/B swapped vs our RGB888 pipeline; swap at ingest.
 constexpr bool kForceLiveRbSwap = true;
 
 void ApplyRequestedFocusProfile(libcamera::Request* request) {
@@ -198,7 +199,6 @@ bool LibcameraCamera::Start(FrameCallback cb) {
     return false;
   }
 
-  // Configure single stream (viewfinder).
   impl_->config =
       impl_->camera->generateConfiguration({libcamera::StreamRole::Viewfinder});
   if (!impl_->config || impl_->config->empty()) {

@@ -1,8 +1,8 @@
 """
-MobileNet-v3-Small for Plant Health Classification
+MobileNet-v3-Small for plant health classification.
 
-Lightweight architecture for mobile and edge deployment, with ImageNet-pretrained
-weights and an adapted classification head for binary healthy vs diseased.
+ImageNet-pretrained backbone with a configurable classification head (default
+three classes: healthy, diseased, background).
 """
 
 import torch
@@ -11,17 +11,17 @@ import torch.nn as nn
 
 class MobileNetV3Small(nn.Module):
     """
-    MobileNet-v3-Small from torchvision, adapted for binary classification.
+    MobileNet-v3-Small from torchvision with a replaced classifier head.
 
     Args:
-        num_classes (int): Number of output classes (default: 2)
-        pretrained (bool): Whether to load ImageNet pretrained weights
-        dropout (float): Dropout probability on the classifier head (before final linear)
+        num_classes: Output classes (training uses 3).
+        pretrained: Load ImageNet weights for the backbone.
+        dropout: Dropout on the classifier before the final linear layer.
     """
 
     def __init__(
         self,
-        num_classes=2,
+        num_classes=3,
         pretrained=True,
         dropout=0.2,
     ):
@@ -59,7 +59,7 @@ class MobileNetV3Small(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-def create_mobilenet_v3_model(num_classes=2, dropout=0.2, pretrained=True):
+def create_mobilenet_v3_model(num_classes=3, dropout=0.2, pretrained=True):
     """
     Factory for MobileNet-v3-Small.
 

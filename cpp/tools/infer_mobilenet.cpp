@@ -1,10 +1,4 @@
-/**
- * MobileNet-v3 plant health inference using ONNX Runtime (C++).
- *
- * Usage:
- *   infer_mobilenet <model.onnx> <image.jpg>
- *   infer_mobilenet <model.onnx> --tensor-bin <float32_nchw_1x3x224x224.bin>
- */
+// Single-image ONNX inference. See cpp/README.md for usage.
 
 #include "inference_ort/ort_engine.hpp"
 #include "preprocess/mobilenet_preprocess.hpp"
@@ -32,8 +26,6 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  // Construct the engine first, then preprocess directly into its pre-bound
-  // input buffer (no intermediate tensor copy).
   phc::OrtInferenceEngine engine(model_path);
   if (!tensor_bin_path.empty()) {
     if (!pp.LoadTensorBinInto(tensor_bin_path, engine.input_data())) {

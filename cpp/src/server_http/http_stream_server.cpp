@@ -223,7 +223,6 @@ bool HttpStreamServer::Start() {
     };
   }
 
-  // GET / and /index.html: embedded HTML page.
   auto serve_index = [](const httplib::Request&, httplib::Response& res) {
     res.set_header("Cache-Control", "no-store");
     res.set_content(std::string(kEmbeddedIndexHtml.data(),
@@ -233,21 +232,16 @@ bool HttpStreamServer::Start() {
   svr.Get("/", serve_index);
   svr.Get("/index.html", serve_index);
 
-  // GET /healthz: trivial liveness probe.
   svr.Get("/healthz", [](const httplib::Request&, httplib::Response& res) {
     res.set_content("ok\n", "text/plain; charset=utf-8");
   });
 
-  // GET /metrics: Pi system metrics (load average, memory, CPU temperature,
-  // CPU percent). Intended for ~1 Hz polling from the live page.
   svr.Get("/metrics", [this](const httplib::Request&,
                               httplib::Response& res) {
     res.set_header("Cache-Control", "no-store");
     res.set_content(BuildMetricsJson(), "application/json");
   });
 
-  // GET /stream.mjpg: multipart MJPEG stream. Each invocation of the
-  // provider blocks until a newer frame arrives, then writes one part.
   svr.Get("/stream.mjpg", [this](const httplib::Request&,
                                   httplib::Response& res) {
     res.set_header("Cache-Control", "no-store");
@@ -297,7 +291,6 @@ bool HttpStreamServer::Start() {
         });
   });
 
-  // GET /events: Server-Sent Events stream of inference results.
   svr.Get("/events", [this](const httplib::Request&,
                              httplib::Response& res) {
     res.set_header("Cache-Control", "no-store");

@@ -1,13 +1,4 @@
-// Live camera -> preprocess -> inference -> in-process HTTP server that
-// streams the preview as MJPEG and inference results over SSE.
-//
-// Build with:
-//   cmake -DENABLE_LIBCAMERA=ON ...
-//
-// Run:
-//   ./live_infer_web <model.onnx> [--port N] [--bind HOST]
-//
-// Then open http://<host>:<port>/ in a browser.
+// Live camera -> preprocess -> inference -> in-process HTTP preview. See cpp/README.md.
 
 #include "../../src/app_runtime/live_pipeline.hpp"
 #include "../../src/camera_libcamera/libcamera_camera.hpp"

@@ -20,7 +20,6 @@ from utils import DEFAULT_CLASSES, create_data_loaders, calculate_metrics_per_ep
 
 
 def train_epoch(model, train_loader, criterion, optimizer, device, epoch):
-    """Train for one epoch."""
     model.train()
 
     running_loss = 0.0
@@ -57,7 +56,6 @@ def train_epoch(model, train_loader, criterion, optimizer, device, epoch):
 
 
 def validate(model, val_loader, criterion, device, epoch):
-    """Validate the model."""
     val_loss, val_acc = calculate_metrics_per_epoch(model, val_loader, device)
 
     print(f'Epoch {epoch} [Val] - Loss: {val_loss:.4f}, Acc: {val_acc:.4f} ({val_acc*100:.2f}%)')
@@ -70,7 +68,7 @@ def train_model(model_type='mobilenet_v3'):
     spec = get_model_spec(model_type)
 
     data_dir = 'data/'
-    num_classes = 3  # healthy, diseased, background
+    num_classes = len(DEFAULT_CLASSES)
     epochs = spec.epochs
     batch_size = spec.batch_size
     lr = spec.lr
@@ -187,7 +185,6 @@ def train_model(model_type='mobilenet_v3'):
 
 
 def main():
-    """Train model based on command line argument."""
     parser = argparse.ArgumentParser(description='Train plant health classification model')
     parser.add_argument(
         '--model',

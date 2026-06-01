@@ -35,8 +35,6 @@ class HttpStreamDisplay final : public IDisplay {
   bool Init(int width, int height) override;
   bool Present(const Frame& rgb888, const InferenceResult& result) override;
 
-  // Reports the port the server is bound to. Useful when cfg.port == 0
-  // for tests.
   int bound_port() const;
 
  private:

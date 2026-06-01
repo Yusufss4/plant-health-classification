@@ -1,18 +1,6 @@
-/**
- * Evaluate MobileNet ONNX on a folder layout matching evaluate.py / PlantHealthDataset:
- *   test_dir/healthy/    (.jpg|.png|.jpeg)   label 0
- *   test_dir/diseased/   (.jpg|.png|.jpeg)   label 1
- *   test_dir/background/ (.jpg|.png|.jpeg)   label 2   (optional - legacy 2-class
- *                                                       layouts still work)
- *
- * Usage:
- *   evaluate_mobilenet <model.onnx> [test_dir]
- *
- * Prints an NxN confusion matrix, accuracy, balanced accuracy, per-class
- * precision/recall/F1, macro-F1, and timing (load + preprocess + ORT per image).
- *
- * Class indices and names must match utils.data_loader.DEFAULT_CLASSES.
- */
+// Evaluate MobileNet ONNX on test_dir/{healthy,diseased,background}/ layouts.
+// Usage: evaluate_mobilenet <model.onnx> [test_dir]
+// See cpp/README.md and utils.data_loader.DEFAULT_CLASSES for class indices.
 
 #include "inference_ort/ort_engine.hpp"
 #include "preprocess/mobilenet_preprocess.hpp"
@@ -103,7 +91,6 @@ void PrintMetrics(const std::vector<std::vector<int64_t>>& cm,
   }
   const double acc = n_d > 0 ? static_cast<double>(correct) / n_d : 0.0;
 
-  // Per-class precision, recall, F1, support.
   std::vector<double> prec(k, 0.0), rec(k, 0.0), f1(k, 0.0);
   std::vector<int64_t> support(k, 0);
   for (size_t c = 0; c < k; ++c) {
@@ -122,8 +109,6 @@ void PrintMetrics(const std::vector<std::vector<int64_t>>& cm,
                 : 0.0;
   }
 
-  // Macro averages (unweighted mean over classes with non-zero support so a
-  // missing class directory doesn't drag the mean to zero).
   double macro_p = 0.0, macro_r = 0.0, macro_f = 0.0;
   size_t active = 0;
   for (size_t c = 0; c < k; ++c) {
@@ -139,7 +124,6 @@ void PrintMetrics(const std::vector<std::vector<int64_t>>& cm,
     macro_f /= active;
   }
 
-  // Balanced accuracy = mean per-class recall (over classes with support).
   double bal_acc = active > 0 ? macro_r : 0.0;
 
   std::cout << std::fixed << std::setprecision(4);

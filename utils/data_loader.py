@@ -38,8 +38,7 @@ class PlantHealthDataset(Dataset):
 
         self.classes = list(classes) if classes is not None else list(DEFAULT_CLASSES)
         self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
-        
-        # Load image paths and labels
+
         self.samples = []
         for class_name in self.classes:
             class_dir = os.path.join(root_dir, class_name)
@@ -57,11 +56,9 @@ class PlantHealthDataset(Dataset):
     
     def __getitem__(self, idx):
         img_path, label = self.samples[idx]
-        
-        # Load image
+
         image = Image.open(img_path).convert('RGB')
-        
-        # Apply transforms
+
         if self.transform:
             image = self.transform(image)
         
@@ -87,8 +84,8 @@ def get_train_transforms():
         ),
         transforms.ToTensor(),
         transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],  # ImageNet mean
-            std=[0.229, 0.224, 0.225]    # ImageNet std
+            mean=[0.485, 0.456, 0.406],  # ImageNet — must match ONNX/C++ preprocess
+            std=[0.229, 0.224, 0.225]
         )
     ])
 
@@ -104,7 +101,7 @@ def get_val_test_transforms():
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
+            mean=[0.485, 0.456, 0.406],  # ImageNet — must match ONNX/C++ preprocess
             std=[0.229, 0.224, 0.225]
         )
     ])
@@ -219,7 +216,6 @@ def get_dataset_stats(data_dir):
         'class_distribution': {}
     }
     
-    # Count samples per class
     for _, label in dataset.samples:
         class_name = dataset.classes[label]
         stats['class_distribution'][class_name] = \
@@ -229,40 +225,7 @@ def get_dataset_stats(data_dir):
 
 
 if __name__ == "__main__":
-    # Example usage
-    print("Data Loader Configuration:")
-    print("=" * 60)
-    
-    # Show training transforms
-    print("\nTraining Transforms:")
-    train_transforms = get_train_transforms()
-    print(train_transforms)
-    
-    # Show validation/test transforms
-    print("\nValidation/Test Transforms:")
-    val_test_transforms = get_val_test_transforms()
-    print(val_test_transforms)
-    
-    print("\nTo use:")
-    print("1. Organize data in the following structure:")
-    print("   data/")
-    print("     train/")
-    print("       healthy/")
-    print("       diseased/")
-    print("       background/")
-    print("     val/")
-    print("       healthy/")
-    print("       diseased/")
-    print("       background/")
-    print("     test/")
-    print("       healthy/")
-    print("       diseased/")
-    print("       background/")
-    print()
-    print("2. Create data loaders:")
-    print("   train_loader, val_loader, test_loader = create_data_loaders(")
-    print("       'data/train', 'data/val', 'data/test',")
-    print("       batch_size=32")
-    print("   )")
+    print(get_train_transforms())
+    print(get_val_test_transforms())
 
 

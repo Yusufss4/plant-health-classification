@@ -28,6 +28,7 @@ DEFAULT_OUTPUT = "checkpoints/mobilenet_v3_3cls.onnx"
 
 
 def load_checkpoint(checkpoint_path: str, device: torch.device) -> dict:
+    """Load a training checkpoint dict from disk."""
     try:
         return torch.load(checkpoint_path, map_location=device, weights_only=True)
     except TypeError:
@@ -83,6 +84,7 @@ def export_onnx(
     output_path: str,
     opset: int = 17,
 ) -> tuple[int, list[str]]:
+    """Export checkpoint weights to ONNX; returns class count and names."""
     device = torch.device("cpu")
     ckpt = load_checkpoint(checkpoint_path, device)
     num_classes, class_names = checkpoint_class_info(ckpt)
@@ -176,6 +178,7 @@ def verify_onnx(
 
 
 def main():
+    """CLI entry: export checkpoint to ONNX and optionally verify parity."""
     parser = argparse.ArgumentParser(description="Export MobileNet-v3 to ONNX")
     parser.add_argument(
         "--checkpoint",

@@ -17,6 +17,8 @@ struct LivePipelineConfig {
   int display_height = 480;
 };
 
+// Camera callback stores the latest frame; a worker thread preprocesses,
+// runs ORT, and presents. Older frames are dropped under load.
 class LivePipeline {
  public:
   LivePipeline(ICamera& camera, IDisplay& display,

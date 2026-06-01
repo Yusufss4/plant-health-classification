@@ -12,13 +12,9 @@
 
 namespace phc {
 
-// MobileNet ORT inference engine.
-//
-// Hot-path allocations are eliminated (C1) and I/O buffers are bound once via
-// Ort::IoBinding (C13): the engine owns the input and output buffers, the model
-// input/output names are resolved a single time at construction, and each Run()
-// reuses the same InferenceResult/scratch vectors. Preprocessing writes directly
-// into input_data(); call Run() with no tensor argument for the fast path.
+// MobileNet ORT inference engine. Input/output buffers are owned and bound once
+// via Ort::IoBinding; names are resolved at construction. Each Run() reuses the
+// same buffers and InferenceResult. Preprocess into input_data(), then Run().
 class OrtInferenceEngine {
  public:
   struct Options {
@@ -38,11 +34,9 @@ class OrtInferenceEngine {
   // need to retain it past the next Run().
   const InferenceResult& Run(uint64_t timestamp_ns = 0);
 
-  // Compatibility path: copies the tensor into the owned input buffer, then runs.
   const InferenceResult& Run(const TensorF32& input_nchw,
                              uint64_t timestamp_ns = 0);
 
-  // Direct access to the owned, pre-bound NCHW input buffer.
   float* input_data() { return input_buf_.data(); }
   const float* input_data() const { return input_buf_.data(); }
   std::size_t input_count() const { return input_buf_.size(); }

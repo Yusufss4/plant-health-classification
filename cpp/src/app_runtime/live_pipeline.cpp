@@ -51,7 +51,7 @@ void LivePipeline::Stop() {
 
 void LivePipeline::OnFrame(Frame frame) {
   std::lock_guard<std::mutex> lk(mu_);
-  latest_frame_ = std::move(frame);  // move; drop older frames to keep preview responsive
+  latest_frame_ = std::move(frame);
 }
 
 void LivePipeline::WorkerLoop() {
@@ -67,8 +67,6 @@ void LivePipeline::WorkerLoop() {
     }
 
     if (frame->format == PixelFormat::Rgb888) {
-      // Fused preprocessing writes straight into the engine's pre-bound input
-      // buffer; Run() then executes over the bound I/O (no per-frame allocs).
       if (preprocess_.RunInto(*frame, engine_.input_data())) {
         const auto t0 = std::chrono::steady_clock::now();
         try {
