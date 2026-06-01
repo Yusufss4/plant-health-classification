@@ -7,7 +7,7 @@ Deploy binaries + model + dataset to a Raspberry Pi (Zero 2 W friendly).
 
 What it copies:
   - C++ build outputs (tools + optionally live_infer_web)
-  - Model file (.onnx or pre-optimized .ort); its basename/extension is preserved
+  - Model file (.onnx); its basename is preserved
   - Dataset folder (expects healthy/, diseased/, and background/ subfolders somewhere under it)
   - (Optional) ONNX Runtime shared libs into deploy/lib
 
@@ -26,10 +26,9 @@ Common options:
   --port <port>            SSH port (default: 22)
   --dest <dir>             Remote deploy dir (default: ~/phc_deploy)
   --build-dir <dir>        Local build dir (default: cpp/build/rpi-zero2w-release)
-  --model <file>           Local model to deploy, .onnx or pre-optimized .ort
+  --model <file>           Local model to deploy, .onnx
                            (default: checkpoints/mobilenet_v3_3cls.onnx).
-                           The basename/extension is preserved on the Pi so the
-                           C++ engine can detect .ort models by extension.
+                           The basename is preserved on the Pi.
   --data <dir>             Local dataset root (default: data/test)
   --ort-root <dir>         Local ONNX Runtime root; if set, copies libonnxruntime.so* to dest/lib
   --no-delete              Do not delete remote files not present locally
@@ -38,8 +37,6 @@ Common options:
 
 Examples:
   scripts/deploy_rpi_zero2w.sh --host rpi-zero2w.local
-  # Deploy a pre-optimized .ort instead (faster startup on the Pi):
-  scripts/deploy_rpi_zero2w.sh --host rpi-zero2w.local --model checkpoints/mobilenet_v3_3cls.ort
   scripts/deploy_rpi_zero2w.sh --host 192.168.1.50 --dest ~/phc --data data/test
   scripts/deploy_rpi_zero2w.sh --host rpi-zero2w.local --ort-root third_party/onnxruntime/onnxruntime-linux-aarch64-1.24.4
 
@@ -106,9 +103,7 @@ if [[ ! -f "${MODEL}" ]]; then
   echo "Model not found: ${MODEL}" >&2
   exit 2
 fi
-# Preserve the source filename (incl. extension) on the Pi. The C++ engine
-# detects pre-optimized .ort models by their extension, so renaming an .ort to
-# .onnx would make ORT try to parse it as ONNX and fail.
+# Preserve the source filename on the Pi.
 MODEL_BASENAME="$(basename "${MODEL}")"
 if [[ ! -d "${DATA}" ]]; then
   echo "Dataset dir not found: ${DATA}" >&2

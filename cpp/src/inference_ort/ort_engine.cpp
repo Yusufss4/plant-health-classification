@@ -1,7 +1,6 @@
 #include "ort_engine.hpp"
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
@@ -9,30 +8,13 @@
 namespace phc {
 namespace {
 
-bool EndsWith(const std::string& s, const std::string& suffix) {
-  if (s.size() < suffix.size()) {
-    return false;
-  }
-  return std::equal(suffix.rbegin(), suffix.rend(), s.rbegin(),
-                    [](char a, char b) {
-                      return std::tolower(static_cast<unsigned char>(a)) ==
-                             std::tolower(static_cast<unsigned char>(b));
-                    });
-}
-
 Ort::Session MakeSession(Ort::Env& env, const std::string& model_path,
                          const OrtInferenceEngine::Options& options) {
   Ort::SessionOptions opts;
   opts.SetIntraOpNumThreads(options.intra_op_threads);
   opts.SetInterOpNumThreads(options.inter_op_threads);
   opts.SetExecutionMode(ORT_SEQUENTIAL);
-  // A pre-optimized .ort already has graph optimizations baked in; re-running
-  // them is wasted startup time (and unsupported for some ORT-format models).
-  if (EndsWith(model_path, ".ort")) {
-    opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_DISABLE_ALL);
-  } else {
-    opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-  }
+  opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
   return Ort::Session(env, model_path.c_str(), opts);
 }
 
