@@ -22,6 +22,18 @@ from utils import (
 )
 
 
+def _checkpoint_class_info(checkpoint, fallback_num_classes=3):
+    """Read num_classes and class_names from checkpoint, with defaults."""
+    num_classes = int(checkpoint.get('num_classes', fallback_num_classes))
+    class_names = list(checkpoint.get('class_names', DEFAULT_CLASSES))
+    if len(class_names) != num_classes:
+        raise ValueError(
+            f'Checkpoint class_names length ({len(class_names)}) != '
+            f'num_classes ({num_classes})'
+        )
+    return num_classes, class_names
+
+
 def load_model(model_type, weights_path, device):
     """
     Load a trained model from checkpoint.
@@ -32,43 +44,53 @@ def load_model(model_type, weights_path, device):
         device: Device to load model on
     
     Returns:
-        Loaded model
+        tuple: (loaded model, class_names list)
     """
     print(f'Loading {model_type.upper()} model from {weights_path}...')
 
-    # 3 classes: healthy, diseased, background
+    checkpoint = torch.load(weights_path, map_location=device)
+    state_dict = (
+        checkpoint['model_state_dict']
+        if 'model_state_dict' in checkpoint
+        else checkpoint
+    )
+    num_classes, class_names = _checkpoint_class_info(
+        checkpoint if isinstance(checkpoint, dict) else {}
+    )
+
     if model_type == 'cnn':
-        model = create_cnn_model(num_classes=3)
+        model = create_cnn_model(num_classes=num_classes)
     elif model_type == 'mobilenet_v3':
-        model = create_mobilenet_v3_model(num_classes=3)
+        model = create_mobilenet_v3_model(num_classes=num_classes)
     elif model_type == 'vit':
-        model = create_vit_model(num_classes=3)
+        model = create_vit_model(num_classes=num_classes)
     else:
         raise ValueError(f"Unknown model type: {model_type}")
-    
-    # Load weights
-    checkpoint = torch.load(weights_path, map_location=device)
-    
-    # Handle different checkpoint formats
-    if 'model_state_dict' in checkpoint:
-        model.load_state_dict(checkpoint['model_state_dict'])
-        print(f'Checkpoint info:')
+
+    model.load_state_dict(state_dict)
+
+    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+        print('Checkpoint info:')
+        if 'model_type' in checkpoint:
+            print(f'  Model type: {checkpoint["model_type"]}')
+        if 'num_classes' in checkpoint:
+            print(f'  Num classes: {checkpoint["num_classes"]}')
+        if 'class_names' in checkpoint:
+            print(f'  Class names: {checkpoint["class_names"]}')
         if 'epoch' in checkpoint:
             print(f'  Epoch: {checkpoint["epoch"]}')
         if 'val_acc' in checkpoint:
             print(f'  Val Accuracy: {checkpoint["val_acc"]:.4f} ({checkpoint["val_acc"]*100:.2f}%)')
         if 'val_loss' in checkpoint:
             print(f'  Val Loss: {checkpoint["val_loss"]:.4f}')
-    else:
-        model.load_state_dict(checkpoint)
-    
+
     model = model.to(device)
     model.eval()
-    
-    print(f'Model loaded successfully!')
+
+    print('Model loaded successfully!')
     print(f'Total parameters: {model.get_num_parameters():,}')
-    
-    return model
+
+    return model, class_names
 
 
 def evaluate_single_model(model_type='cnn'):
@@ -78,49 +100,44 @@ def evaluate_single_model(model_type='cnn'):
     Args:
         model_type: Type of model to evaluate ('cnn', 'mobilenet_v3', or 'vit')
     """
-    # Hardcoded configuration
     test_dir = 'data/test'
     batch_size = 32
-    # Matches train.py's _3cls suffix so old 2-class checkpoints stay untouched.
     model_path = f'checkpoints/{model_type}_3cls_best.pth'
     num_workers = 4
-    
-    # Set device
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
-    
-    # Load model
-    model = load_model(model_type, model_path, device)
-    
-    # Load data
+
+    model, class_names = load_model(model_type, model_path, device)
+
     print('\nLoading test data...')
     _, _, test_loader = create_data_loaders(
         train_dir='data/train',
         val_dir='data/val',
         test_dir=test_dir,
         batch_size=batch_size,
-        num_workers=num_workers
+        num_workers=num_workers,
+        classes=class_names,
     )
-    
-    # Evaluate
+
     print(f'\n{"="*80}')
     print(f'Evaluating on Test Set ({len(test_loader.dataset)} samples)')
     print(f'{"="*80}')
-    
+
     results = evaluate_model(
-        model, test_loader, device, class_names=DEFAULT_CLASSES
+        model, test_loader, device, class_names=class_names
     )
 
-    print_evaluation_results(results, class_names=DEFAULT_CLASSES)
+    print_evaluation_results(results, class_names=class_names)
 
     plot_confusion_matrix(
         results['confusion_matrix'],
-        class_names=DEFAULT_CLASSES,
+        class_names=class_names,
         save_path=None,
     )
-    
+
     print('\nEvaluation completed!')
-    
+
     return results
 
 
@@ -134,18 +151,18 @@ def main():
         choices=['cnn', 'vit', 'mobilenet_v3'],
         help='Model type to evaluate. Default: cnn'
     )
-    
+
     args = parser.parse_args()
-    
+
     model_names = {
         'cnn': 'EfficientNet-B0',
         'vit': 'DINOv3 Vision Transformer',
         'mobilenet_v3': 'MobileNet-v3-Small',
     }
-    
-    print("="*80)
+
+    print("=" * 80)
     print(f"Evaluating {model_names[args.model]} Model")
-    print("="*80)
+    print("=" * 80)
     evaluate_single_model(model_type=args.model)
 
 

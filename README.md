@@ -1,80 +1,129 @@
 # Plant Health Classification
 
-A streamlined deep learning project for classifying plant leaves as healthy or diseased.
+Deep learning project for classifying plant leaves and scene context as **healthy**, **diseased**, or **background** (non-leaf / empty frame). Training uses PyTorch; edge deployment uses **MobileNet-v3** exported to ONNX and C++ ONNX Runtime.
 
 ## Setup
 
 1. Install dependencies:
+
 ```bash
 pip install -r requirements.txt
 ```
 
 2. Prepare the dataset:
 
-**Option A: Automatic download (Recommended)**
+**Step 1 — Leaf images (PlantVillage)**
+
 ```bash
 python prepare_data.py
+# Reproducible split:
+python prepare_data.py --seed 42
 ```
 
-This will automatically:
-- Download the PlantVillage dataset from TensorFlow Datasets
-- Extract all plant leaf images (healthy vs diseased) from 14 crop species
-- Split into train (70%), validation (15%), and test (15%) sets
-- Organize into the required directory structure
+This downloads PlantVillage via TensorFlow Datasets, maps 38 fine-grained labels to **healthy** vs **diseased**, and splits into train (70%), validation (15%), and test (15%).
 
-**Option B: Manual preparation**
+**Step 2 — Background class (required for 3-class training)**
 
-If you have your own dataset, organize it in the following structure:
+```bash
+python prepare_background_data.py
+```
+
+Adds `data/{train,val,test}/background/` from filtered COCO images and synthetic patches. Without this step, the model trains with only two populated classes while the head still has three outputs.
+
+**Verify layout**
+
+```bash
+python prepare_data.py --verify-only
+python prepare_data.py --verify-only --require-background
+```
+
+**Manual layout** (if not using the download scripts):
+
 ```
 data/
 ├── train/
 │   ├── healthy/
-│   └── diseased/
+│   ├── diseased/
+│   └── background/
 ├── val/
 │   ├── healthy/
-│   └── diseased/
+│   ├── diseased/
+│   └── background/
 └── test/
     ├── healthy/
-    └── diseased/
+    ├── diseased/
+    └── background/
 ```
+
+Class index order (fixed everywhere — Python, checkpoints, ONNX metadata, C++):
+
+| Index | Name |
+|-------|------|
+| 0 | `healthy` |
+| 1 | `diseased` |
+| 2 | `background` |
 
 ## Usage
 
-### Train Models
-
-Train models with command line arguments:
+### Train models
 
 ```bash
-# Train both models (default)
-python train.py
-python train.py --model both
+# MobileNet-v3 (edge / ONNX path)
+python train.py --model mobilenet_v3
 
-# Train only EfficientNet-B0
+# EfficientNet-B0
 python train.py --model cnn
 
-# Train only DINOv3 ViT
+# DINOv3 ViT (timm)
 python train.py --model vit
+
+# Train EfficientNet + ViT (default)
+python train.py
+python train.py --model both
 ```
 
-This will:
-- Train EfficientNet-B0 for 10 epochs with batch_size=32, lr=0.001
-- Train DINOv3 ViT-S/14 for 25 epochs with batch_size=16, lr=0.0001
-- Save best models to `checkpoints/cnn_best.pth` and `checkpoints/vit_best.pth`
+Training hyperparameters (see [`train.py`](train.py)):
 
-### Evaluate Models
+| Model | Epochs | Batch | LR | Dropout | Checkpoint |
+|-------|--------|-------|-----|---------|------------|
+| `cnn` (EfficientNet-B0) | 10 | 32 | 1e-4 | 0.3 | `checkpoints/cnn_3cls_best.pth` |
+| `mobilenet_v3` | 15 | 32 | 1e-4 | 0.2 | `checkpoints/mobilenet_v3_3cls_best.pth` |
+| `vit` | 25 | 16 | 1e-4 | 0.1 | `checkpoints/vit_3cls_best.pth` |
 
-Evaluate a specific model:
+Checkpoints include `num_classes`, `class_names`, and `model_type` metadata for evaluation and export.
+
+### Evaluate models
 
 ```bash
-# Evaluate EfficientNet-B0 (default)
-python evaluate.py
+python evaluate.py --model mobilenet_v3
 python evaluate.py --model cnn
-
-# Evaluate DINOv3 ViT
 python evaluate.py --model vit
 ```
 
-This will evaluate the specified model on the test set and display metrics with confusion matrix.
-Results are saved to `results/` directory.
+Loads `checkpoints/{model}_3cls_best.pth` and reports test metrics plus a confusion matrix.
 
-- Side-by-side model comparison
+### Export ONNX (MobileNet → C++ / Pi)
+
+```bash
+python export_mobilenet_onnx.py
+# → checkpoints/mobilenet_v3_3cls.onnx (with class metadata in ONNX metadata_props)
+```
+
+### C++ inference
+
+See [`cpp/README.md`](cpp/README.md) for building `phc_infer_mobilenet`, `phc_evaluate_mobilenet`, and optional `live_infer_web`.
+
+Parity check (shared preprocessed tensor):
+
+```bash
+bash scripts/validate_cpp_inference.sh /path/to/leaf.jpg ./cpp/build/local-release/phc_infer_mobilenet
+```
+
+## End-to-end workflow (deployment)
+
+1. `python prepare_data.py [--seed 42]`
+2. `python prepare_background_data.py`
+3. `python train.py --model mobilenet_v3`
+4. `python export_mobilenet_onnx.py`
+5. `python evaluate.py --model mobilenet_v3`
+6. Build and run C++ tools with `checkpoints/mobilenet_v3_3cls.onnx`

@@ -13,13 +13,13 @@
 
 ## Command + dataset
 Command:
-`./bin/phc_evaluate_mobilenet ./model/mobilenet_v3.onnx ./data/test`
+`./bin/phc_evaluate_mobilenet ./model/mobilenet_v3_3cls.onnx ./data/test`
 
 Evaluated: **8106 images** from `./data/test`
 
 ## Quantization status (current)
-- **Quantization**: **Not enabled in this run** — results above are for the **FP32** model (`mobilenet_v3.onnx`).
-- **Optional**: The repo includes `quantize_mobilenet_onnx.py` to produce a **dynamic INT8 weight-quantized** ONNX model (e.g. `mobilenet_v3_int8.onnx`) for potentially smaller/faster CPU inference on the Pi.
+- **Quantization**: **Not enabled in this run** — results above are for the **FP32** model (`mobilenet_v3_3cls.onnx`).
+- **Optional**: INT8 quantization may be added later as a separate export script for smaller/faster CPU inference on the Pi.
 
 ## Results (ONNX / C++)
 Overall metrics:
@@ -173,7 +173,7 @@ Evaluated: **12606 images** from `./data/test`
 - **GPU**: NVIDIA GeForce RTX 3050 Laptop GPU, **4 GB** VRAM (driver **595.97**)
 
 **Command**
-`python evaluate.py --model mobilenet_v3` — loads `checkpoints/mobilenet_v3_best.pth`, **device: CUDA**, **8106** test samples.
+`python evaluate.py --model mobilenet_v3` — loads `checkpoints/mobilenet_v3_3cls_best.pth`, **device: CUDA**, **8106** test samples.
 
 **Metrics**
 - **Accuracy**: 0.9980 (99.80%)

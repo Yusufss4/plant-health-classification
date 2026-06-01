@@ -19,7 +19,7 @@ flowchart LR
   subgraph dev["Development host (x86_64)"]
     ORT_x64["ONNX Runtime\nlinux-x64"]
     Build["CMake build\n+ optional tests"]
-    Model["mobilenet_v3.onnx"]
+    Model["mobilenet_v3_3cls.onnx"]
   end
 
   subgraph pi["Raspberry Pi Zero 2 W (aarch64)"]
@@ -39,7 +39,7 @@ flowchart LR
 
 | Layer | Role | Status in repo |
 |--------|------|----------------|
-| **Model artifact** | `checkpoints/mobilenet_v3.onnx` (from Python export) | Yes |
+| **Model artifact** | `checkpoints/mobilenet_v3_3cls.onnx` (from Python export) | Yes |
 | **Preprocess** | RGB → 224×224 bilinear, ImageNet normalize, NCHW | `src/preprocess/mobilenet_preprocess.*` |
 | **Inference** | ORT session, CPU, logits → argmax / metrics | `phc_infer_mobilenet`, `phc_evaluate_mobilenet` |
 | **Camera / ISP** | Acquire frames from Camera Module 3 | **Not in tree yet** — integrate via libcamera or capture-to-file then reuse `ImageToNchw` |
@@ -70,7 +70,7 @@ flowchart LR
 
 Use this to iterate **without** the Pi: same ONNX file, same preprocessing contract, faster edit/build cycles.
 
-1. **Export ONNX** (repo root): `python export_mobilenet_onnx.py` → `checkpoints/mobilenet_v3.onnx`.
+1. **Export ONNX** (repo root): `python export_mobilenet_onnx.py` → `checkpoints/mobilenet_v3_3cls.onnx` (includes `class_names` / `num_classes` in ONNX metadata).
 2. **ONNX Runtime (x86_64):**
 
    ```bash
@@ -92,13 +92,13 @@ Use this to iterate **without** the Pi: same ONNX file, same preprocessing contr
 
    ```bash
    export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
-   ./build/local-release/phc_infer_mobilenet ../checkpoints/mobilenet_v3.onnx /path/to/leaf.jpg
+   ./build/local-release/phc_infer_mobilenet ../checkpoints/mobilenet_v3_3cls.onnx /path/to/leaf.jpg
    ```
 
 5. **Batch evaluation** (same layout as Python `data/test/healthy`, `data/test/diseased`, and `data/test/background`):
 
    ```bash
-   ./build/local-release/phc_evaluate_mobilenet ../checkpoints/mobilenet_v3.onnx ../data/test
+   ./build/local-release/phc_evaluate_mobilenet ../checkpoints/mobilenet_v3_3cls.onnx ../data/test
    ```
 
 6. **Strict parity vs Python** (same float tensor, bypasses resize differences between stacks):
@@ -129,9 +129,9 @@ This gives you **local functional tests** of the model + C++ stack before any cr
 - Toolchain file sets `CMAKE_C_COMPILER`, `CMAKE_CXX_COMPILER` to `aarch64-linux-gnu-gcc` / `g++`, and optionally `CMAKE_SYSROOT` / `CMAKE_FIND_ROOT_PATH` for the Pi sysroot.
 - Invoke CMake with `-DCMAKE_TOOLCHAIN_FILE=...` and still pass `-DONNXRUNTIME_ROOT=...` (or env) to the **aarch64** ORT unpack path.
 
-**Deploy:** Copy the binary, `mobilenet_v3.onnx`, and the matching **`libonnxruntime.so.*`** (or set `LD_LIBRARY_PATH` / `rpath` as today). Verify with `readelf -d` / `ldd` on the Pi.
+**Deploy:** Copy the binary, `mobilenet_v3_3cls.onnx`, and the matching **`libonnxruntime.so.*`** (or set `LD_LIBRARY_PATH` / `rpath` as today). Verify with `readelf -d` / `ldd` on the Pi. Class labels are stored in the ONNX file’s `metadata_props` (`class_names`, `num_classes`).
 
-**Memory:** Pi Zero 2 W has **512 MB RAM** — enable swap if linking OOMs; consider **INT8** ONNX (`quantize_mobilenet_onnx.py`) for headroom.
+**Memory:** Pi Zero 2 W has **512 MB RAM** — enable swap if linking OOMs; consider FP32 first, then optional quantization if you add a quantize script.
 
 ---
 
@@ -164,7 +164,7 @@ bash scripts/download_onnxruntime.sh linux-aarch64
 export ONNXRUNTIME_ROOT="$(pwd)/third_party/onnxruntime/onnxruntime-linux-aarch64-1.24.4"
 cd cpp && cmake -B build -S . && cmake --build build
 export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
-./build/phc_infer_mobilenet ../checkpoints/mobilenet_v3.onnx /path/to/leaf.jpg
+./build/phc_infer_mobilenet ../checkpoints/mobilenet_v3_3cls.onnx /path/to/leaf.jpg
 ```
 
 ---
@@ -190,7 +190,7 @@ cmake --build build
 
 ```bash
 export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
-./build/live_infer_web /path/to/mobilenet_v3.onnx --port 8080
+./build/live_infer_web /path/to/mobilenet_v3_3cls.onnx --port 8080
 ```
 
 Then open `http://<pi>:8080/` in a browser.
@@ -205,7 +205,7 @@ Then open `http://<pi>:8080/` in a browser.
 | `GET /metrics` | `application/json` | Pi system metrics for the live page (load average, memory, CPU temperature, CPU percent). Intended for ~1 Hz polling. Missing `/proc` or `/sys` fields are omitted, not faked |
 | `GET /healthz` | `text/plain` | Liveness probe |
 
-**CLI flags**: `--port N` (default `8080`), `--bind HOST` (default `0.0.0.0`), `--jpeg-quality Q` (default `70`). The second positional argument is still accepted as a port for backward compatibility, but the old artifact-directory positional argument is gone.
+**CLI flags**: `--port N` (default `8080`), `--bind HOST` (default `0.0.0.0`), `--jpeg-quality Q` (default `55`). The second positional argument is still accepted as a port for backward compatibility, but the old artifact-directory positional argument is gone.
 
 The server is HTTP only; prefer firewall rules or binding to `127.0.0.1` plus SSH port-forwarding if the network is not trusted.
 

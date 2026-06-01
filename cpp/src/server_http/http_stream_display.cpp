@@ -102,7 +102,7 @@ bool HttpStreamDisplay::Present(const Frame& rgb888,
 
   std::vector<uint8_t> jpeg;
   // Reasonable upper-bound reservation: ~5% of raw size is a typical
-  // headroom for quality 70 on natural images; expanding on demand is fine.
+  // headroom for quality 55 on natural images; expanding on demand is fine.
   jpeg.reserve(static_cast<size_t>(packed_stride) *
                static_cast<size_t>(h) / 16);
   const auto enc_t0 = std::chrono::steady_clock::now();

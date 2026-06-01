@@ -16,7 +16,7 @@ import torch.optim as optim
 from tqdm import tqdm
 
 from models import create_cnn_model, create_mobilenet_v3_model, create_vit_model
-from utils import create_data_loaders, calculate_metrics_per_epoch
+from utils import DEFAULT_CLASSES, create_data_loaders, calculate_metrics_per_epoch
 
 
 def train_epoch(model, train_loader, criterion, optimizer, device, epoch):
@@ -120,7 +120,23 @@ def train_model(model_type='cnn'):
     
     print(f'Train samples: {len(train_loader.dataset)}')
     print(f'Val samples: {len(val_loader.dataset)}')
-    
+
+    if len(val_loader.dataset) == 0:
+        raise ValueError(
+            'Validation set is empty. Run prepare_data.py (and '
+            'prepare_background_data.py for the background class) first.'
+        )
+    if len(train_loader.dataset) == 0:
+        raise ValueError(
+            'Training set is empty. Run prepare_data.py (and '
+            'prepare_background_data.py for the background class) first.'
+        )
+
+    checkpoint_path = os.path.join(
+        checkpoint_dir, f'{model_type}_3cls_best.pth'
+    )
+    saved_checkpoint = False
+
     # Create model
     print(f'\nCreating {model_type.upper()} model (num_classes={num_classes})...')
     if model_type == 'cnn':
@@ -185,21 +201,21 @@ def train_model(model_type='cnn'):
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_val_acc = val_acc
-            
+
             # _3cls suffix keeps the previous 2-class checkpoint files intact on
             # disk while this 3-class run produces parallel artifacts.
-            checkpoint_path = os.path.join(
-                checkpoint_dir,
-                f'{model_type}_3cls_best.pth'
-            )
             torch.save({
                 'epoch': epoch,
+                'model_type': model_type,
+                'num_classes': num_classes,
+                'class_names': list(DEFAULT_CLASSES),
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_loss': val_loss,
                 'val_acc': val_acc,
-                'history': history
+                'history': history,
             }, checkpoint_path)
+            saved_checkpoint = True
             print(f'  ✅ Saved best model (val_loss: {val_loss:.4f}, val_acc: {val_acc:.4f})')
         
         print('-' * 80)
@@ -208,7 +224,10 @@ def train_model(model_type='cnn'):
     print('Training completed!')
     print(f'Best Val Loss: {best_val_loss:.4f}')
     print(f'Best Val Acc: {best_val_acc:.4f} ({best_val_acc*100:.2f}%)')
-    print(f'Best model saved to: {checkpoint_path}')
+    if saved_checkpoint:
+        print(f'Best model saved to: {checkpoint_path}')
+    else:
+        print('No checkpoint was saved (validation loss never improved).')
     print(f'{"="*80}')
     
     return history

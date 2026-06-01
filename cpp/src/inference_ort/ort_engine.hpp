@@ -22,8 +22,8 @@ namespace phc {
 class OrtInferenceEngine {
  public:
   struct Options {
-    int intra_op_threads = 4;
-    int inter_op_threads = 4;
+    int intra_op_threads = 2;
+    int inter_op_threads = 2;
     // Ort::Env severity; ORT_LOGGING_LEVEL_ERROR suppresses GPU discovery noise on Pi.
     int ort_log_level = ORT_LOGGING_LEVEL_WARNING;
     // Must match utils.data_loader.DEFAULT_CLASSES on the Python side.

@@ -12,41 +12,89 @@ Input: NCHW float32, batch 1, 3x224x224, ImageNet-normalized (see cpp/README.md)
 """
 
 import argparse
+import json
 import os
 
 import numpy as np
+import onnx
 import torch
 
 from models import create_mobilenet_v3_model
+from utils import DEFAULT_CLASSES
 
 # Must match train.py mobilenet_v3 branch
 DROPOUT = 0.2
-NUM_CLASSES = 3  # healthy, diseased, background
 DEFAULT_CHECKPOINT = "checkpoints/mobilenet_v3_3cls_best.pth"
 DEFAULT_OUTPUT = "checkpoints/mobilenet_v3_3cls.onnx"
 
 
-def load_weights(model, checkpoint_path: str, device: torch.device) -> None:
+def load_checkpoint(checkpoint_path: str, device: torch.device) -> dict:
     try:
-        ckpt = torch.load(checkpoint_path, map_location=device, weights_only=True)
+        return torch.load(checkpoint_path, map_location=device, weights_only=True)
     except TypeError:
-        ckpt = torch.load(checkpoint_path, map_location=device)
+        return torch.load(checkpoint_path, map_location=device)
+
+
+def checkpoint_class_info(ckpt: dict) -> tuple[int, list[str]]:
+    num_classes = int(ckpt.get("num_classes", len(DEFAULT_CLASSES)))
+    class_names = list(ckpt.get("class_names", DEFAULT_CLASSES))
+    if len(class_names) != num_classes:
+        raise ValueError(
+            f"Checkpoint class_names length ({len(class_names)}) != "
+            f"num_classes ({num_classes})"
+        )
+    return num_classes, class_names
+
+
+def load_weights(model, checkpoint_path: str, device: torch.device) -> dict:
+    ckpt = load_checkpoint(checkpoint_path, device)
     if "model_state_dict" in ckpt:
         model.load_state_dict(ckpt["model_state_dict"])
     else:
         model.load_state_dict(ckpt)
+    return ckpt
+
+
+def attach_onnx_metadata(
+    onnx_path: str,
+    class_names: list[str],
+    num_classes: int,
+) -> None:
+    """Embed class labels in ONNX metadata_props for deployment tooling."""
+    model = onnx.load(onnx_path)
+    del model.metadata_props[:]
+    props = {
+        "num_classes": str(num_classes),
+        "class_names": ",".join(class_names),
+        "class_names_json": json.dumps(class_names),
+    }
+    for key, value in props.items():
+        entry = model.metadata_props.add()
+        entry.key = key
+        entry.value = value
+    onnx.save(model, onnx_path)
+    print(
+        f"Attached ONNX metadata: num_classes={num_classes}, "
+        f"class_names={class_names}"
+    )
 
 
 def export_onnx(
     checkpoint_path: str,
     output_path: str,
     opset: int = 17,
-) -> None:
+) -> tuple[int, list[str]]:
     device = torch.device("cpu")
+    ckpt = load_checkpoint(checkpoint_path, device)
+    num_classes, class_names = checkpoint_class_info(ckpt)
+
     model = create_mobilenet_v3_model(
-        num_classes=NUM_CLASSES, dropout=DROPOUT, pretrained=False
+        num_classes=num_classes, dropout=DROPOUT, pretrained=False
     )
-    load_weights(model, checkpoint_path, device)
+    if "model_state_dict" in ckpt:
+        model.load_state_dict(ckpt["model_state_dict"])
+    else:
+        model.load_state_dict(ckpt)
     model.eval()
 
     dummy = torch.randn(1, 3, 224, 224, device=device)
@@ -72,16 +120,28 @@ def export_onnx(
         torch.onnx.export(model, dummy, output_path, **export_kwargs)
     print(f"Exported ONNX to {output_path}")
 
+    attach_onnx_metadata(output_path, class_names, num_classes)
+    return num_classes, class_names
 
-def verify_onnx(checkpoint_path: str, onnx_path: str) -> None:
+
+def verify_onnx(
+    checkpoint_path: str,
+    onnx_path: str,
+    num_classes: int,
+) -> None:
     """Compare PyTorch vs ONNX Runtime logits on the same random tensor."""
     import onnxruntime as ort
 
     device = torch.device("cpu")
+    ckpt = load_checkpoint(checkpoint_path, device)
+
     model = create_mobilenet_v3_model(
-        num_classes=NUM_CLASSES, dropout=DROPOUT, pretrained=False
+        num_classes=num_classes, dropout=DROPOUT, pretrained=False
     )
-    load_weights(model, checkpoint_path, device)
+    if "model_state_dict" in ckpt:
+        model.load_state_dict(ckpt["model_state_dict"])
+    else:
+        model.load_state_dict(ckpt)
     model.eval()
 
     np.random.seed(0)
@@ -114,7 +174,7 @@ def main():
         "--checkpoint",
         type=str,
         default=DEFAULT_CHECKPOINT,
-        help="Path to mobilenet_v3_best.pth",
+        help="Path to mobilenet_v3_3cls_best.pth",
     )
     parser.add_argument(
         "--output",
@@ -141,9 +201,9 @@ def main():
             "`python train.py --model mobilenet_v3` first."
         )
 
-    export_onnx(args.checkpoint, args.output, opset=args.opset)
+    num_classes, _ = export_onnx(args.checkpoint, args.output, opset=args.opset)
     if not args.no_verify:
-        verify_onnx(args.checkpoint, args.output)
+        verify_onnx(args.checkpoint, args.output, num_classes)
 
 
 if __name__ == "__main__":
