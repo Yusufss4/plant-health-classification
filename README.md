@@ -1,18 +1,110 @@
-# Plant Health Classification
+# Plant Health Classification — Edge Deployment on Raspberry Pi Zero 2 W
 
-Deep learning project for classifying plant leaves and scene context as **healthy**, **diseased**, or **background** (non-leaf / empty frame). Training uses PyTorch; edge deployment uses **MobileNet-v3** exported to ONNX and C++ ONNX Runtime.
+Train a lightweight **MobileNet-v3-Small** classifier for plant leaf health, export it to **ONNX**, and run inference on a **Raspberry Pi Zero 2 W** with **ONNX Runtime (C++)**. The model predicts three classes: **healthy**, **diseased**, and **background** (non-leaf / empty frame).
+
+This repository is focused on a single production path—**train → export → deploy**—not on comparing multiple backbones. PyTorch handles training and validation on a development machine; the Pi runs a native C++ stack for batch evaluation, single-image inference, and optional live camera preview over HTTP.
+
+---
+
+## What this project does
+
+| Stage | Where it runs | What happens |
+|-------|----------------|--------------|
+| Data prep | Dev PC | Download PlantVillage + background images; 3-class folder layout |
+| Training | Dev PC (GPU optional) | Fine-tune MobileNet-v3 on 224×224 RGB |
+| Evaluation | Dev PC | Test-set metrics and confusion matrix (PyTorch) |
+| Export | Dev PC | ONNX with embedded class metadata |
+| Inference | Pi Zero 2 W (or PC for dev) | Preprocess → ORT → label + timing |
+| Live demo | Pi (optional) | Camera + MJPEG/SSE web UI (`live_infer_web`) |
+
+**Target hardware:** Raspberry Pi Zero 2 W (quad-core Cortex-A53, 512 MB RAM), typically with **Camera Module 3** and 64-bit Raspberry Pi OS.
+
+**Documented results:** see [`results/rpi_zero_2w_mobilenet_onnx_cpp.md`](results/rpi_zero_2w_mobilenet_onnx_cpp.md) (on-device accuracy and throughput) and [`results/edge_deployment_mobilenet_report.md`](results/edge_deployment_mobilenet_report.md) (deployment write-up).
+
+---
+
+## Model and classes
+
+- **Architecture:** MobileNet-v3-Small (`torchvision`), ~2.5M parameters, ImageNet-pretrained backbone.
+- **Input:** NCHW float32, shape `[1, 3, 224, 224]`, ImageNet normalization (same in Python and C++).
+- **Output:** logits for 3 classes.
+
+| Index | Label | Meaning |
+|-------|--------|---------|
+| 0 | `healthy` | Healthy leaf |
+| 1 | `diseased` | Diseased leaf |
+| 2 | `background` | Non-leaf / scene without a leaf |
+
+Class order is fixed across Python training, checkpoint metadata, ONNX `metadata_props`, and C++ inference.
+
+---
+
+## Repository layout
+
+```
+plant-health-classification/
+├── data/                    # train/val/test (created by prepare scripts)
+├── checkpoints/             # .pth and .onnx (gitignored)
+├── models/
+│   ├── mobilenet_v3.py      # Backbone + factory
+│   └── registry.py          # Registered models + training hyperparameters
+├── utils/                   # Data loaders, metrics, plots
+├── train.py                 # Train MobileNet-v3
+├── evaluate.py              # PyTorch test-set evaluation
+├── export_mobilenet_onnx.py # Export ONNX for C++
+├── prepare_data.py          # PlantVillage download + split
+├── prepare_background_data.py
+├── cpp/                     # ONNX Runtime inference (see cpp/README.md)
+├── scripts/                 # ORT download, deploy, parity validation
+├── web/live/                # HTML embedded into live_infer_web
+└── results/                 # Pi benchmarks and deployment notes
+```
+
+---
+
+## Requirements
+
+### Development machine (training + export)
+
+- **Python 3.10+** recommended
+- **pip** packages: see [`requirements.txt`](requirements.txt)
+  - PyTorch, torchvision (MobileNet)
+  - TensorFlow + TFDS (dataset download only)
+  - ONNX, onnxruntime (export and parity checks)
+  - scikit-learn, matplotlib, etc. (metrics and plots)
+- **Disk:** several GB for PlantVillage + COCO background subset
+- **GPU:** optional but speeds up training
+
+### Build machine (C++ / cross-compile)
+
+- **CMake 3.16+**, C++17 compiler
+- **ONNX Runtime** CPU build for your host (`linux-x64`) and/or Pi (`linux-aarch64`) — use [`scripts/download_onnxruntime.sh`](scripts/download_onnxruntime.sh)
+- **Cross-compile to Pi (optional):** `aarch64-linux-gnu` toolchain + sysroot — see [`cpp/README.md`](cpp/README.md) and [`cpp/toolchains/rpi-aarch64/`](cpp/toolchains/rpi-aarch64/)
+- **Live camera web UI (optional):** libcamera development headers (`-DENABLE_LIBCAMERA=ON`)
+
+### Raspberry Pi Zero 2 W
+
+- **64-bit** Raspberry Pi OS (aarch64)
+- ONNX model file and `phc_*` binaries (deployed via [`scripts/deploy_rpi_zero2w.sh`](scripts/deploy_rpi_zero2w.sh) or built natively on the Pi)
+- `libonnxruntime.so` on `LD_LIBRARY_PATH` or next to binaries
+
+---
 
 ## Setup
 
-1. Install dependencies:
+### 1. Clone and install Python dependencies
 
 ```bash
+git clone <repo-url> plant-health-classification
+cd plant-health-classification
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-2. Prepare the dataset:
+### 2. Prepare the dataset
 
-**Step 1 — Leaf images (PlantVillage)**
+**Leaf images (PlantVillage)** — maps 38 fine-grained labels to healthy vs diseased, then splits 70% / 15% / 15%:
 
 ```bash
 python prepare_data.py
@@ -20,110 +112,166 @@ python prepare_data.py
 python prepare_data.py --seed 42
 ```
 
-This downloads PlantVillage via TensorFlow Datasets, maps 38 fine-grained labels to **healthy** vs **diseased**, and splits into train (70%), validation (15%), and test (15%).
-
-**Step 2 — Background class (required for 3-class training)**
+**Background class (required for 3-class training)** — adds `background/` under train, val, and test:
 
 ```bash
 python prepare_background_data.py
 ```
 
-Adds `data/{train,val,test}/background/` from filtered COCO images and synthetic patches. Without this step, the model trains with only two populated classes while the head still has three outputs.
-
-**Verify layout**
+**Verify layout:**
 
 ```bash
 python prepare_data.py --verify-only
 python prepare_data.py --verify-only --require-background
 ```
 
-**Manual layout** (if not using the download scripts):
+Expected structure:
 
 ```
 data/
-├── train/
-│   ├── healthy/
-│   ├── diseased/
-│   └── background/
-├── val/
-│   ├── healthy/
-│   ├── diseased/
-│   └── background/
-└── test/
-    ├── healthy/
-    ├── diseased/
-    └── background/
+├── train/{healthy,diseased,background}/
+├── val/{healthy,diseased,background}/
+└── test/{healthy,diseased,background}/
 ```
 
-Class index order (fixed everywhere — Python, checkpoints, ONNX metadata, C++):
+---
 
-| Index | Name |
-|-------|------|
-| 0 | `healthy` |
-| 1 | `diseased` |
-| 2 | `background` |
+## Workflow
 
-## Usage
-
-### Train models
+### Train (PyTorch)
 
 ```bash
-# MobileNet-v3 (edge / ONNX path)
-python train.py --model mobilenet_v3
-
-# EfficientNet-B0
-python train.py --model cnn
-
-# DINOv3 ViT (timm)
-python train.py --model vit
-
-# Train EfficientNet + ViT (default)
 python train.py
-python train.py --model both
+# equivalent:
+python train.py --model mobilenet_v3
 ```
 
-Training hyperparameters (see [`train.py`](train.py)):
+Default hyperparameters (in [`models/registry.py`](models/registry.py)):
 
-| Model | Epochs | Batch | LR | Dropout | Checkpoint |
-|-------|--------|-------|-----|---------|------------|
-| `cnn` (EfficientNet-B0) | 10 | 32 | 1e-4 | 0.3 | `checkpoints/cnn_3cls_best.pth` |
-| `mobilenet_v3` | 15 | 32 | 1e-4 | 0.2 | `checkpoints/mobilenet_v3_3cls_best.pth` |
-| `vit` | 25 | 16 | 1e-4 | 0.1 | `checkpoints/vit_3cls_best.pth` |
+| Setting | Value |
+|---------|--------|
+| Epochs | 15 |
+| Batch size | 32 |
+| Learning rate | 1e-4 |
+| Dropout | 0.2 |
+| Checkpoint | `checkpoints/mobilenet_v3_3cls_best.pth` |
 
-Checkpoints include `num_classes`, `class_names`, and `model_type` metadata for evaluation and export.
+Checkpoints store `model_type`, `num_classes`, `class_names`, and weights for export and evaluation.
 
-### Evaluate models
+### Evaluate (PyTorch, dev machine)
 
 ```bash
-python evaluate.py --model mobilenet_v3
-python evaluate.py --model cnn
-python evaluate.py --model vit
+python evaluate.py
 ```
 
-Loads `checkpoints/{model}_3cls_best.pth` and reports test metrics plus a confusion matrix.
+Loads `checkpoints/mobilenet_v3_3cls_best.pth`, runs the test loader, prints metrics and a confusion matrix.
 
-### Export ONNX (MobileNet → C++ / Pi)
+### Export ONNX
 
 ```bash
 python export_mobilenet_onnx.py
-# → checkpoints/mobilenet_v3_3cls.onnx (with class metadata in ONNX metadata_props)
+# → checkpoints/mobilenet_v3_3cls.onnx
 ```
 
-### C++ inference
+Class names and `num_classes` are written into ONNX `metadata_props` for the C++ tools.
 
-See [`cpp/README.md`](cpp/README.md) for building `phc_infer_mobilenet`, `phc_evaluate_mobilenet`, and optional `live_infer_web`.
-
-Parity check (shared preprocessed tensor):
+### Build and test C++ locally (x86_64)
 
 ```bash
-bash scripts/validate_cpp_inference.sh /path/to/leaf.jpg ./cpp/build/local-release/phc_infer_mobilenet
+bash scripts/download_onnxruntime.sh linux-x64
+export ONNXRUNTIME_ROOT="$(pwd)/third_party/onnxruntime/onnxruntime-linux-x64-1.24.4"
+
+cd cpp
+cmake --preset local-release
+cmake --build --preset local-release
+
+export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
+./build/local-release/phc_infer_mobilenet ../checkpoints/mobilenet_v3_3cls.onnx /path/to/leaf.jpg
+./build/local-release/phc_evaluate_mobilenet ../checkpoints/mobilenet_v3_3cls.onnx ../data/test
 ```
 
-## End-to-end workflow (deployment)
+**Python vs C++ parity** (same preprocessed tensor):
+
+```bash
+bash scripts/validate_cpp_inference.sh /path/to/leaf.jpg
+```
+
+Full C++ architecture, cross-compilation, unit tests, and live web UI: **[`cpp/README.md`](cpp/README.md)**.
+
+### Deploy to Raspberry Pi Zero 2 W
+
+1. Cross-build (or build on the Pi) with the **aarch64** ONNX Runtime package.
+2. Copy artifacts:
+
+```bash
+scripts/deploy_rpi_zero2w.sh --host <pi-hostname-or-ip>
+```
+
+3. On the Pi:
+
+```bash
+cd ~/phc_deploy
+export LD_LIBRARY_PATH="$PWD/lib:${LD_LIBRARY_PATH}"
+./bin/phc_evaluate_mobilenet model/mobilenet_v3_3cls.onnx data/test
+```
+
+**Live preview** (requires `live_infer_web` built with libcamera):
+
+```bash
+./bin/live_infer_web ./model/mobilenet_v3_3cls.onnx --port 8080
+# Open http://<pi-ip>:8080/
+```
+
+---
+
+## End-to-end checklist
 
 1. `python prepare_data.py [--seed 42]`
 2. `python prepare_background_data.py`
-3. `python train.py --model mobilenet_v3`
+3. `python train.py`
 4. `python export_mobilenet_onnx.py`
-5. `python evaluate.py --model mobilenet_v3`
-6. Build and run C++ tools with `checkpoints/mobilenet_v3_3cls.onnx`
+5. `python evaluate.py` (optional sanity check on PC)
+6. Build C++ (`cpp/`), validate parity (`scripts/validate_cpp_inference.sh`)
+7. Deploy to Pi (`scripts/deploy_rpi_zero2w.sh`) and run `phc_evaluate_mobilenet` or `live_infer_web`
+
+---
+
+## C++ tools (summary)
+
+| Binary | Purpose |
+|--------|---------|
+| `phc_infer_mobilenet` | Single image → class label |
+| `phc_evaluate_mobilenet` | Folder of `healthy/` / `diseased/` / `background/` → metrics + timing |
+| `live_infer_web` | Camera + in-process HTTP (MJPEG + SSE); optional build |
+
+Preprocessing (224×224, ImageNet norm, NCHW) lives in `cpp/src/preprocess/`. Inference uses a shared ORT wrapper under `cpp/src/inference_ort/`.
+
+---
+
+## Adding another backbone (optional)
+
+The training stack is model-agnostic via a small registry:
+
+1. Add `models/your_model.py` with `create_*_model(num_classes, ...)`.
+2. Register it in [`models/registry.py`](models/registry.py) (factory + epochs, batch size, lr, dropout).
+3. Train with `python train.py --model <key>` and add a dedicated ONNX export path if you deploy it on the Pi.
+
+The **edge runtime** today is wired for MobileNet preprocessing and artifact names only; a new deployed model needs matching C++ preprocess and export scripts.
+
+---
+
+## Scripts reference
+
+| Script | Role |
+|--------|------|
+| [`scripts/download_onnxruntime.sh`](scripts/download_onnxruntime.sh) | Fetch ORT release (`linux-x64` or `linux-aarch64`) |
+| [`scripts/validate_cpp_inference.sh`](scripts/validate_cpp_inference.sh) | Compare Python ORT vs C++ on the same tensor |
+| [`scripts/deploy_rpi_zero2w.sh`](scripts/deploy_rpi_zero2w.sh) | rsync binaries, ONNX, and test data to the Pi |
+| [`scripts/sync_rpi_sysroot.sh`](scripts/sync_rpi_sysroot.sh) | Sync sysroot for cross-compilation |
+| [`scripts/dump_ort_reference.py`](scripts/dump_ort_reference.py) | Save NCHW tensor for C++ `--tensor-bin` tests |
+
+---
+
+## License and attribution
+
+Dataset sources: **PlantVillage** (via TensorFlow Datasets) for leaf images; **COCO**-derived backgrounds for the third class. See preparation scripts for download details.
