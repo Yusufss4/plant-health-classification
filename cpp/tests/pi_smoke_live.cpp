@@ -21,7 +21,6 @@ TEST_CASE("Pi smoke: start live pipeline briefly", "[pi][smoke]") {
   phc::HttpStreamDisplayConfig disp_cfg;
   disp_cfg.bind_host = "127.0.0.1";
   disp_cfg.port = 0;  // ephemeral
-  disp_cfg.jpeg_quality = 55;
   phc::HttpStreamDisplay disp(disp_cfg);
   phc::MobilenetPreprocessor pp;
   phc::OrtInferenceEngine engine(model_path);

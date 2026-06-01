@@ -12,9 +12,8 @@ struct HttpStreamDisplayConfig {
   std::string bind_host = "0.0.0.0";
   int port = 8080;
   // JPEG quality (1..100). Lower is faster on the Pi Zero 2W and produces
-  // smaller frames over the wire. 55 balances preview quality and encode cost;
-  // bump it if visual quality matters more than FPS.
-  int jpeg_quality = 55;
+  // smaller frames over the wire. 50 favors encode/FPS on device.
+  int jpeg_quality = 50;
   // Minimum gap between published frames (across the network). 0 means
   // "publish as fast as the pipeline produces them".
   int min_publish_interval_ms = 0;

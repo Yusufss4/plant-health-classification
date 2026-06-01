@@ -78,7 +78,10 @@ set(CMAKE_CXX_FLAGS_INIT "${_CXX_FLAGS_COMMON}")
 set(CMAKE_C_FLAGS_DEBUG_INIT "-O0 -g3")
 set(CMAKE_CXX_FLAGS_DEBUG_INIT "-O0 -g3")
 
-# Release flags
-set(CMAKE_C_FLAGS_RELEASE_INIT "-O3 -DNDEBUG")
-set(CMAKE_CXX_FLAGS_RELEASE_INIT "-O3 -DNDEBUG")
+# Release: Pi Zero 2 W (Cortex-A53). -g0 avoids debug info in hot paths; LTO
+# links our static libs with cross-TU inlining (ORT stays a prebuilt .so).
+set(_RPI_RELEASE_FLAGS "-O3 -DNDEBUG -mcpu=cortex-a53 -g0")
+set(CMAKE_C_FLAGS_RELEASE_INIT "${_RPI_RELEASE_FLAGS}")
+set(CMAKE_CXX_FLAGS_RELEASE_INIT "${_RPI_RELEASE_FLAGS}")
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 

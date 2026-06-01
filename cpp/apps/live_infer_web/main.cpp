@@ -5,7 +5,7 @@
 //   cmake -DENABLE_LIBCAMERA=ON ...
 //
 // Run:
-//   ./live_infer_web <model.onnx> [--port N] [--bind HOST] [--jpeg-quality Q]
+//   ./live_infer_web <model.onnx> [--port N] [--bind HOST]
 //
 // Then open http://<host>:<port>/ in a browser.
 
@@ -27,11 +27,8 @@
 namespace {
 
 void PrintUsage(const char* argv0) {
-  std::cerr
-      << "Usage: " << argv0
-      << " <model.onnx> [--port N] [--bind HOST] [--jpeg-quality Q]\n"
-      << "       " << argv0 << " <model.onnx> <port>   (positional port, "
-      << "kept for backward compat)\n";
+  std::cerr << "Usage: " << argv0
+            << " <model.onnx> [--port N] [--bind HOST]\n";
 }
 
 bool ParseInt(const std::string& s, int& out) {
@@ -81,26 +78,9 @@ int main(int argc, char** argv) {
       const char* v = need_value("--bind");
       if (!v) return 1;
       disp_cfg.bind_host = v;
-    } else if (a == "--jpeg-quality") {
-      const char* v = need_value("--jpeg-quality");
-      if (!v) return 1;
-      if (!ParseInt(v, disp_cfg.jpeg_quality)) {
-        std::cerr << "Invalid --jpeg-quality value: " << v << "\n";
-        return 1;
-      }
     } else if (a == "-h" || a == "--help") {
       PrintUsage(argv[0]);
       return 0;
-    } else if (i == 2 && !a.empty() && a[0] != '-') {
-      // Backward-compat: second positional arg is the port (the old
-      // signature took an artifact directory here, but that's gone).
-      int p = 0;
-      if (!ParseInt(a, p)) {
-        std::cerr << "Unknown argument: " << a << "\n";
-        PrintUsage(argv[0]);
-        return 1;
-      }
-      disp_cfg.port = p;
     } else {
       std::cerr << "Unknown argument: " << a << "\n";
       PrintUsage(argv[0]);
