@@ -23,7 +23,7 @@ Ort::Session MakeSession(Ort::Env& env, const std::string& model_path,
 OrtInferenceEngine::OrtInferenceEngine(const std::string& model_path,
                                        const Options& options)
     : options_(options),
-      env_(ORT_LOGGING_LEVEL_WARNING, "phc"),
+      env_(static_cast<OrtLoggingLevel>(options.ort_log_level), "phc"),
       session_(MakeSession(env_, model_path, options_)),
       allocator_(),
       mem_info_(

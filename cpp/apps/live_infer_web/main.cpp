@@ -11,7 +11,9 @@
 
 #include "../../src/app_runtime/live_pipeline.hpp"
 #include "../../src/camera_libcamera/libcamera_camera.hpp"
+#include "../../src/core/phc_log.hpp"
 #include "../../src/inference_ort/ort_engine.hpp"
+#include <onnxruntime_c_api.h>
 #include "../../src/preprocess/mobilenet_preprocess.hpp"
 #include "../../src/server_http/http_stream_display.hpp"
 
@@ -49,6 +51,8 @@ bool ParseInt(const std::string& s, int& out) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  phc::log::ConfigureThirdPartyLogLevels();
+
   if (argc < 2) {
     PrintUsage(argv[0]);
     return 1;
@@ -107,7 +111,9 @@ int main(int argc, char** argv) {
   phc::LibcameraCamera cam(phc::LibcameraConfig{});
   phc::HttpStreamDisplay disp(disp_cfg);
   phc::MobilenetPreprocessor pp;
-  phc::OrtInferenceEngine engine(model_path);
+  phc::OrtInferenceEngine::Options engine_opts;
+  engine_opts.ort_log_level = ORT_LOGGING_LEVEL_ERROR;
+  phc::OrtInferenceEngine engine(model_path, engine_opts);
 
   phc::LivePipelineConfig cfg;
   cfg.display_width = 640;
@@ -115,13 +121,12 @@ int main(int argc, char** argv) {
 
   phc::LivePipeline pipeline(cam, disp, pp, engine, cfg);
   if (!pipeline.Start()) {
-    std::cerr << "Failed to start pipeline\n";
+    phc::log::Error() << "Failed to start pipeline";
     return 1;
   }
 
-  std::cout << "Live preview ready: http://" << disp_cfg.bind_host << ":"
-            << disp.bound_port() << "/\n";
-  std::cout << "Running. Press Ctrl+C to exit.\n";
+  phc::log::Info() << "Live preview ready: http://" << disp_cfg.bind_host << ":"
+                   << disp.bound_port() << "/";
   for (;;) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }

@@ -1,6 +1,7 @@
 #include "http_stream_display.hpp"
 
 #include "../core/inference_result.hpp"
+#include "../core/phc_log.hpp"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -49,12 +50,12 @@ bool HttpStreamDisplay::Init(int width, int height) {
   (void)height;
   last_publish_ns_ = 0;
   if (!server_->Start()) {
-    std::cerr << "HttpStreamDisplay: failed to bind HTTP server on "
-              << cfg_.bind_host << ":" << cfg_.port << "\n";
+    log::Error() << "HttpStreamDisplay: failed to bind HTTP server on "
+                 << cfg_.bind_host << ":" << cfg_.port;
     return false;
   }
-  std::cerr << "HttpStreamDisplay: listening on http://" << cfg_.bind_host
-            << ":" << server_->bound_port() << "/\n";
+  log::Debug() << "HttpStreamDisplay: listening on http://" << cfg_.bind_host
+               << ":" << server_->bound_port() << "/";
   return true;
 }
 

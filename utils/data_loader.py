@@ -25,8 +25,11 @@ class PlantHealthDataset(Dataset):
             ('healthy', 'diseased', 'background').
         transform (callable, optional): Optional transform to be applied on images.
         classes (list[str], optional): Override the class list. Defaults to
-            ``DEFAULT_CLASSES``. Classes whose subdirectory does not exist on
-            disk are silently skipped (useful for legacy 2-class data).
+            ``DEFAULT_CLASSES``. If a class subdirectory is missing, no samples
+            are loaded for that class, but ``self.classes`` and ``class_to_idx``
+            are unchanged so indices stay aligned with the 3-class model (e.g.
+            legacy ``healthy/`` + ``diseased/`` only still use labels 0 and 1;
+            ``background`` remains index 2 with zero samples).
     """
 
     def __init__(self, root_dir, transform=None, classes=None):

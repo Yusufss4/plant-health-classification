@@ -1,5 +1,6 @@
 #include "libcamera_camera.hpp"
 
+#include "../core/phc_log.hpp"
 #include "../core/rgb_normalize.hpp"
 
 #include <atomic>
@@ -60,9 +61,9 @@ bool ResolvePackedFormat(const libcamera::PixelFormat& pf, int& bpp,
 }
 
 void LogStreamConfig(const char* stage, const libcamera::StreamConfiguration& sc) {
-  std::cerr << "libcamera " << stage << ": format=" << sc.pixelFormat.toString()
-            << " size=" << sc.size.width << "x" << sc.size.height
-            << " stride=" << sc.stride << "\n";
+  log::Debug() << "libcamera " << stage << ": format=" << sc.pixelFormat.toString()
+               << " size=" << sc.size.width << "x" << sc.size.height
+               << " stride=" << sc.stride;
 }
 
 }  // namespace
@@ -139,11 +140,11 @@ void LibcameraCamera::OnRequestCompleted(libcamera::Request* request) {
       impl_->src_bpp, impl_->src_order, f.data, f.stride_bytes);
   ::munmap(map, length);
   if (!ok) {
-    std::cerr << "libcamera: failed to normalize frame to RGB888"
-              << " src_stride=" << src_stride_bytes
-              << " src_bpp=" << impl_->src_bpp
-              << " src_order=" << PackedOrderName(impl_->src_order)
-              << " dst=" << f.width << "x" << f.height << "\n";
+    log::Error() << "libcamera: failed to normalize frame to RGB888"
+                 << " src_stride=" << src_stride_bytes
+                 << " src_bpp=" << impl_->src_bpp
+                 << " src_order=" << PackedOrderName(impl_->src_order)
+                 << " dst=" << f.width << "x" << f.height;
     ApplyRequestedFocusProfile(request);
     request->reuse(libcamera::Request::ReuseBuffers);
     impl_->camera->queueRequest(request);
@@ -179,19 +180,19 @@ bool LibcameraCamera::Start(FrameCallback cb) {
 
   impl_->cm = std::make_unique<libcamera::CameraManager>();
   if (impl_->cm->start()) {
-    std::cerr << "libcamera CameraManager start failed\n";
+    log::Error() << "libcamera CameraManager start failed";
     impl_->running = false;
     return false;
   }
   if (impl_->cm->cameras().empty()) {
-    std::cerr << "No libcamera cameras found\n";
+    log::Error() << "No libcamera cameras found";
     impl_->cm->stop();
     impl_->running = false;
     return false;
   }
   impl_->camera = impl_->cm->cameras().front();
   if (impl_->camera->acquire()) {
-    std::cerr << "Camera acquire failed\n";
+    log::Error() << "Camera acquire failed";
     impl_->cm->stop();
     impl_->running = false;
     return false;
@@ -201,7 +202,7 @@ bool LibcameraCamera::Start(FrameCallback cb) {
   impl_->config =
       impl_->camera->generateConfiguration({libcamera::StreamRole::Viewfinder});
   if (!impl_->config || impl_->config->empty()) {
-    std::cerr << "generateConfiguration failed\n";
+    log::Error() << "generateConfiguration failed";
     impl_->camera->release();
     impl_->cm->stop();
     impl_->running = false;
@@ -217,7 +218,7 @@ bool LibcameraCamera::Start(FrameCallback cb) {
   const libcamera::CameraConfiguration::Status v = impl_->config->validate();
   LogStreamConfig("post-validate", sc);
   if (v == libcamera::CameraConfiguration::Invalid) {
-    std::cerr << "Camera configuration invalid\n";
+    log::Error() << "Camera configuration invalid";
     impl_->camera->release();
     impl_->cm->stop();
     impl_->running = false;
@@ -225,7 +226,7 @@ bool LibcameraCamera::Start(FrameCallback cb) {
   }
 
   if (impl_->camera->configure(impl_->config.get())) {
-    std::cerr << "Camera configure failed\n";
+    log::Error() << "Camera configure failed";
     impl_->camera->release();
     impl_->cm->stop();
     impl_->running = false;
@@ -236,11 +237,11 @@ bool LibcameraCamera::Start(FrameCallback cb) {
   int src_bpp = 0;
   PackedRgbOrder src_order = PackedRgbOrder::Rgb;
   if (!ResolvePackedFormat(impl_->config->at(0).pixelFormat, src_bpp, src_order)) {
-    std::cerr << "Unsupported libcamera pixel format negotiated: "
-              << impl_->config->at(0).pixelFormat.toString()
-              << ". Expected RGB888 or BGR888. "
-              << "If your pipeline negotiates a 4-byte format, add explicit "
-              << "normalization before emitting Frame::Rgb888.\n";
+    log::Error() << "Unsupported libcamera pixel format negotiated: "
+                 << impl_->config->at(0).pixelFormat.toString()
+                 << ". Expected RGB888 or BGR888. "
+                 << "If your pipeline negotiates a 4-byte format, add explicit "
+                 << "normalization before emitting Frame::Rgb888.";
     impl_->camera->release();
     impl_->cm->stop();
     impl_->running = false;
@@ -249,17 +250,17 @@ bool LibcameraCamera::Start(FrameCallback cb) {
   impl_->src_bpp = src_bpp;
   impl_->src_order = kForceLiveRbSwap ? PackedRgbOrder::Bgr : src_order;
   if (kForceLiveRbSwap) {
-    std::cerr << "libcamera live color fix active: forcing source channel order to "
-              << PackedOrderName(impl_->src_order)
-              << " before RGB888 normalization"
-              << " (negotiated order was " << PackedOrderName(src_order) << ")\n";
+    log::Debug() << "libcamera live color fix: forcing source channel order to "
+                 << PackedOrderName(impl_->src_order)
+                 << " before RGB888 normalization"
+                 << " (negotiated order was " << PackedOrderName(src_order) << ")";
   }
 
   impl_->stream = sc.stream();
   impl_->allocator =
       std::make_unique<libcamera::FrameBufferAllocator>(impl_->camera);
   if (impl_->allocator->allocate(impl_->stream) < 0) {
-    std::cerr << "FrameBufferAllocator allocate failed\n";
+    log::Error() << "FrameBufferAllocator allocate failed";
     impl_->camera->release();
     impl_->cm->stop();
     impl_->running = false;
@@ -282,19 +283,19 @@ bool LibcameraCamera::Start(FrameCallback cb) {
     impl_->requests.push_back(std::move(req));
   }
   if (impl_->requests.empty()) {
-    std::cerr << "No libcamera requests created\n";
+    log::Error() << "No libcamera requests created";
     Stop();
     return false;
   }
 
   if (impl_->camera->start()) {
-    std::cerr << "Camera start failed\n";
+    log::Error() << "Camera start failed";
     Stop();
     return false;
   }
 
-  std::cerr << "libcamera focus profile: AfModeContinuous, AfRangeMacro, "
-               "AfSpeedFast\n";
+  log::Debug() << "libcamera focus profile: AfModeContinuous, AfRangeMacro, "
+                  "AfSpeedFast";
   for (auto& req : impl_->requests) {
     ApplyRequestedFocusProfile(req.get());
     impl_->camera->queueRequest(req.get());
