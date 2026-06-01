@@ -19,7 +19,11 @@ namespace {
 
 void PrintUsage(const char* argv0) {
   std::cerr << "Usage: " << argv0
-            << " <model.onnx> [--port N] [--bind HOST]\n";
+            << " <model.onnx> [--port PORT] [--bind HOST] [-h|--help]\n"
+            << "\n"
+            << "  --port PORT   Listen port, 1-65535 (default 8080)\n"
+            << "  --bind HOST   Bind address (default 0.0.0.0)\n"
+            << "  -h, --help    Show this help\n";
 }
 
 bool ParseInt(const std::string& s, int& out) {
@@ -34,6 +38,13 @@ bool ParseInt(const std::string& s, int& out) {
   } catch (...) {
     return false;
   }
+}
+
+bool ParsePort(const char* s, int& out) {
+  if (!ParseInt(s, out)) {
+    return false;
+  }
+  return out >= 1 && out <= 65535;
 }
 
 }  // namespace
@@ -61,8 +72,13 @@ int main(int argc, char** argv) {
     if (a == "--port") {
       const char* v = need_value("--port");
       if (!v) return 1;
-      if (!ParseInt(v, disp_cfg.port)) {
-        std::cerr << "Invalid --port value: " << v << "\n";
+      if (!ParsePort(v, disp_cfg.port)) {
+        int probe = 0;
+        if (ParseInt(v, probe) && (probe < 1 || probe > 65535)) {
+          std::cerr << "Port out of range (must be 1-65535): " << v << "\n";
+        } else {
+          std::cerr << "Invalid --port value: " << v << "\n";
+        }
         return 1;
       }
     } else if (a == "--bind") {
