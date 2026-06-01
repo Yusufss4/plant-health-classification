@@ -1,91 +1,109 @@
-# C++ side — architecture & operations
+# C++ inference stack
 
-This document describes how the C++ inference stack is structured, how it maps to **Raspberry Pi Zero 2 W** + **Camera Module 3**, how to **develop and test on a PC**, how **unit tests** fit in, and how **cross-compilation** is intended to work.
+Native **ONNX Runtime** inference for MobileNet-v3 plant health classification on **x86_64** (development) and **aarch64** (Raspberry Pi Zero 2 W). The stack covers image preprocessing, batch evaluation, optional **libcamera** capture, and an in-process HTTP server for live preview.
 
-Executable tools today:
+## Executables
 
-- **`phc_infer_mobilenet`** — single-image inference (ORT forward pass).
-- **`phc_evaluate_mobilenet`** — batch evaluation on `healthy/` / `diseased/` / `background/` folders (metrics + timing).
-- **`live_infer_web`** (optional, `-DENABLE_LIBCAMERA=ON`) — live camera + inference + in-process HTTP server streaming the preview as MJPEG and inference results over Server-Sent Events.
+| Binary | Purpose |
+|--------|---------|
+| `phc_infer_mobilenet` | Single image or preprocessed tensor → class label |
+| `phc_evaluate_mobilenet` | Test folders (`healthy/`, `diseased/`, `background/`) → metrics + timing |
+| `live_infer_web` | Live camera + inference + MJPEG/SSE web UI (requires `-DENABLE_LIBCAMERA=ON`) |
 
-Shared preprocessing and ONNX Runtime wiring live under **`src/preprocess`**, **`src/inference_ort`**, and related modules.
+Shared libraries: **`phc_preprocess`**, **`phc_inference_ort`**, **`phc_app_runtime`**, **`phc_server_http`**, and optionally **`phc_camera_libcamera`**.
 
 ---
 
-## 1. Architecture overview
+## Architecture
 
 ```mermaid
 flowchart LR
   subgraph dev["Development host (x86_64)"]
     ORT_x64["ONNX Runtime\nlinux-x64"]
-    Build["CMake build\n+ optional tests"]
+    Build["CMake presets\n+ unit tests"]
     Model["mobilenet_v3_3cls.onnx"]
   end
 
   subgraph pi["Raspberry Pi Zero 2 W (aarch64)"]
-    Cam["Camera Module 3\nlibcamera stack"]
-    Cap["Capture / decode\nJPEG or raw frames"]
+    Cam["Camera Module 3\nlibcamera"]
+    Cap["Frame decode\nRGB888"]
     Pre["Resize + ImageNet\nNCHW float32"]
     ORT_arm["ONNX Runtime\nlinux-aarch64"]
-    Out["Healthy / diseased / background\nlogits or label"]
+    Web["HTTP server\nMJPEG + SSE"]
+    Out["healthy / diseased / background"]
   end
 
   Model --> ORT_x64
   Model --> ORT_arm
   Cam --> Cap --> Pre --> ORT_arm --> Out
+  Cap --> Web
+  ORT_arm --> Web
 ```
 
-**Layers (conceptual):**
-
-| Layer | Role | Status in repo |
-|--------|------|----------------|
-| **Model artifact** | `checkpoints/mobilenet_v3_3cls.onnx` (from Python export) | Yes |
-| **Preprocess** | RGB → 224×224 bilinear, ImageNet normalize, NCHW | `src/preprocess/mobilenet_preprocess.*` |
-| **Inference** | ORT session, CPU, logits → argmax / metrics | `phc_infer_mobilenet`, `phc_evaluate_mobilenet` |
-| **Camera / ISP** | Acquire frames from Camera Module 3 | **Not in tree yet** — integrate via libcamera or capture-to-file then reuse `ImageToNchw` |
-| **Tests** | Unit tests for math helpers; optional integration tests with ORT | **To add** (see §5) |
-
----
-
-## 2. Target deployment: Pi Zero 2 W + Camera Module 3
-
-- **Board:** Raspberry Pi Zero 2 W (quad-core **Cortex-A53**, **aarch64**; 512 MB RAM — prefer **quantized** ONNX if inference is tight).
-- **Camera:** Raspberry Pi Camera Module 3 uses the **libcamera** stack on modern Raspberry Pi OS (not the legacy `raspistill` pipeline).
-
-**Recommended integration patterns (choose one later):**
-
-1. **File-based (simplest):** A small capture utility or `rpicam-still` writes a JPEG; your existing path loads it with **stb_image** + `ImageToNchw`. Good for bring-up and parity with desktop tests.
-2. **In-process:** Link **libcamera** (or a thin wrapper) and feed decoded RGB buffers into the same preprocessing function used for files — same tensor contract, lower latency, more code.
-
-**Contract (must match training — unchanged):**
-
-- Input tensor: name `input`, shape `[1, 3, 224, 224]`, float32, **NCHW**.
-- Output: name `logits`, shape `[1, 3]`.
-- RGB: resize **224×224** (bilinear), scale to `[0,1]`, ImageNet mean/std per channel.
-- Classes (must match `utils.data_loader.DEFAULT_CLASSES`): `0` = healthy, `1` = diseased, `2` = background.
+| Layer | Location | Role |
+|--------|----------|------|
+| Model artifact | `checkpoints/mobilenet_v3_3cls.onnx` | ONNX from Python export; class metadata in `metadata_props` |
+| Preprocess | `src/preprocess/` | RGB → 224×224 bilinear, ImageNet normalize, NCHW |
+| Inference | `src/inference_ort/` | ORT session, CPU, logits → argmax |
+| Camera | `src/camera_libcamera/` | libcamera capture → `Frame` (RGB888) |
+| Live runtime | `src/app_runtime/` | Pipeline: frame → preprocess → infer → display |
+| HTTP | `src/server_http/` | Embedded HTML, MJPEG stream, SSE events, metrics |
+| CLIs | `tools/`, `apps/live_infer_web/` | Batch/single inference and live web app |
 
 ---
 
-## 3. Local development (test on your PC)
+## Tensor contract
 
-Use this to iterate **without** the Pi: same ONNX file, same preprocessing contract, faster edit/build cycles.
+Must match training and Python export:
 
-1. **Export ONNX** (repo root): `python export_mobilenet_onnx.py` → `checkpoints/mobilenet_v3_3cls.onnx` (includes `class_names` / `num_classes` in ONNX metadata).
-2. **ONNX Runtime (x86_64):**
+| Item | Value |
+|------|--------|
+| Input name | `input` |
+| Input shape | `[1, 3, 224, 224]` float32 NCHW |
+| Output name | `logits` |
+| Output shape | `[1, 3]` |
+| Preprocess | Bilinear resize to 224×224, scale to `[0,1]`, ImageNet mean/std per channel |
+| Classes | `0` healthy, `1` diseased, `2` background |
+
+Class names in ONNX `metadata_props` (`class_names`, `num_classes`) are read at runtime by the ORT engine.
+
+---
+
+## Target hardware
+
+- **Board:** Raspberry Pi Zero 2 W — quad-core **Cortex-A53**, **512 MB RAM**, **aarch64**.
+- **OS:** 64-bit Raspberry Pi OS.
+- **Camera:** Raspberry Pi Camera Module 3 via the **libcamera** stack (`live_infer_web` and `phc_camera_libcamera`).
+- **Memory:** FP32 ONNX is the default; enable swap on the Pi if linking or inference is tight.
+
+File-based inference (`phc_infer_mobilenet` with JPEG/PNG paths) uses **stb_image** and the same preprocess path as live capture.
+
+---
+
+## Local development (x86_64)
+
+1. **Export ONNX** (repo root):
+
+   ```bash
+   python export_mobilenet_onnx.py
+   ```
+
+2. **ONNX Runtime:**
 
    ```bash
    bash scripts/download_onnxruntime.sh linux-x64
    export ONNXRUNTIME_ROOT="$(pwd)/third_party/onnxruntime/onnxruntime-linux-x64-1.24.4"
    ```
 
-   Adjust the path if your version differs.
+   CMake presets default to this path when `ONNXRUNTIME_ROOT` is unset.
 
-3. **Configure & build:**
+3. **Configure, build, test:**
 
    ```bash
    cd cpp
    cmake --preset local-release
    cmake --build --preset local-release
+   ctest --test-dir build/local-release --output-on-failure
    ```
 
 4. **Run inference:**
@@ -95,135 +113,178 @@ Use this to iterate **without** the Pi: same ONNX file, same preprocessing contr
    ./build/local-release/phc_infer_mobilenet ../checkpoints/mobilenet_v3_3cls.onnx /path/to/leaf.jpg
    ```
 
-5. **Batch evaluation** (same layout as Python `data/test/healthy`, `data/test/diseased`, and `data/test/background`):
+5. **Batch evaluation** (layout: `data/test/{healthy,diseased,background}/`):
 
    ```bash
    ./build/local-release/phc_evaluate_mobilenet ../checkpoints/mobilenet_v3_3cls.onnx ../data/test
    ```
 
-6. **Strict parity vs Python** (same float tensor, bypasses resize differences between stacks):
+6. **Parity vs Python** (identical float tensor, bypasses resize differences):
 
    ```bash
    bash scripts/validate_cpp_inference.sh /path/to/image.jpg
    ```
 
-   `validate_cpp_inference.sh` resolves `phc_infer_mobilenet` from `cpp/build/local-release` by default.
-   If your binary is elsewhere, pass an override:
+   Override the build directory if needed:
 
    ```bash
    bash scripts/validate_cpp_inference.sh --build-dir cpp/build/rpi-zero2w-release /path/to/image.jpg
    ```
 
-This gives you **local functional tests** of the model + C++ stack before any cross-build.
+`phc_infer_mobilenet` also accepts a dumped tensor:
+
+```bash
+./build/local-release/phc_infer_mobilenet model.onnx --tensor-bin preprocessed_float32_nchw.bin
+```
+
+Generate reference tensors with [`scripts/dump_ort_reference.py`](../scripts/dump_ort_reference.py).
 
 ---
 
-## 4. Cross-compilation (host x86_64 → Pi aarch64)
+## Cross-compilation (x86_64 host → Pi aarch64)
 
-**Idea:** Build on a fast machine with a **GCC/Clang aarch64-linux-gnu toolchain** and a **sysroot** (or staged rootfs) that holds Pi-compatible headers/libs for anything beyond ONNX Runtime’s bundled dependency (e.g. if you later add libcamera).
+**Toolchain:** [`toolchains/rpi-aarch64/toolchain.cmake`](toolchains/rpi-aarch64/toolchain.cmake) — `aarch64-linux-gnu-gcc` / `g++`, requires **`RPI_SYSROOT`**.
 
-**ONNX Runtime:** Use the official **`linux-aarch64`** CPU package from the same release line as your host tests, and point **`ONNXRUNTIME_ROOT`** at that tree during the cross build (headers + `libonnxruntime.so` for **aarch64**).
+**Sysroot:** sync from a Pi with [`scripts/sync_rpi_sysroot.sh`](../scripts/sync_rpi_sysroot.sh), then:
 
-**Typical CMake pattern:**
+```bash
+export RPI_SYSROOT="$HOME/sysroots/rpi-zero2w"
+```
 
-- Toolchain file sets `CMAKE_C_COMPILER`, `CMAKE_CXX_COMPILER` to `aarch64-linux-gnu-gcc` / `g++`, and optionally `CMAKE_SYSROOT` / `CMAKE_FIND_ROOT_PATH` for the Pi sysroot.
-- Invoke CMake with `-DCMAKE_TOOLCHAIN_FILE=...` and still pass `-DONNXRUNTIME_ROOT=...` (or env) to the **aarch64** ORT unpack path.
-
-**Deploy:** Copy the binary, `mobilenet_v3_3cls.onnx`, and the matching **`libonnxruntime.so.*`** (or set `LD_LIBRARY_PATH` / `rpath` as today). Verify with `readelf -d` / `ldd` on the Pi. Class labels are stored in the ONNX file’s `metadata_props` (`class_names`, `num_classes`).
-
-**Memory:** Pi Zero 2 W has **512 MB RAM** — enable swap if linking OOMs; consider FP32 first, then optional quantization if you add a quantize script.
-
----
-
-## 5. Unit tests (libraries & pure code)
-
-**Goal:** Test **deterministic** pieces without requiring a camera or flaky I/O.
-
-**Good candidates:**
-
-- **Bilinear resize** (fixed small `src` / `dst`, golden output bytes).
-- **ImageNet NCHW layout** (known RGB patch → expected float at a few indices).
-- **Argmax / softmax helpers** if extracted from printing code.
-- **Stub ORT session** (optional): heavier; often reserved for **integration** tests on CI with ORT loaded.
-
-**Suggested stack (not wired in yet):**
-
-- **GoogleTest** or **Catch2** + **CTest** (`enable_testing()`, `add_test()`).
-- Split pure functions into **small translation units** under something like `cpp/src/` / `cpp/test/` so tests link only what they need.
-
-Run tests on **x86_64** first; add **aarch64** test runs on real Pi or QEMU if you need full confidence on device.
-
----
-
-## 6. Reference: Pi native build (no cross compiler)
-
-On **64-bit** Raspberry Pi OS (aarch64):
+**ONNX Runtime:** use the **`linux-aarch64`** package from the same release as host tests:
 
 ```bash
 bash scripts/download_onnxruntime.sh linux-aarch64
 export ONNXRUNTIME_ROOT="$(pwd)/third_party/onnxruntime/onnxruntime-linux-aarch64-1.24.4"
-cd cpp && cmake -B build -S . && cmake --build build
+```
+
+**Build** (presets enable `ENABLE_LIBCAMERA` and `ENABLE_TESTS` for Pi):
+
+```bash
+cd cpp
+cmake --preset rpi-zero2w-release
+cmake --build --preset rpi-zero2w-release
+ctest --test-dir build/rpi-zero2w-release --output-on-failure
+```
+
+**Deploy:** [`scripts/deploy_rpi_zero2w.sh`](../scripts/deploy_rpi_zero2w.sh) copies binaries, the ONNX model, test data, and optionally `libonnxruntime.so*` into `~/phc_deploy` on the Pi. Set `LD_LIBRARY_PATH` to the bundled `lib/` directory.
+
+Release builds target **Cortex-A53** (`-mcpu=cortex-a53`) with LTO for static libraries.
+
+---
+
+## Native build on the Pi
+
+On 64-bit Raspberry Pi OS:
+
+```bash
+bash scripts/download_onnxruntime.sh linux-aarch64
+export ONNXRUNTIME_ROOT="$(pwd)/third_party/onnxruntime/onnxruntime-linux-aarch64-1.24.4"
+cd cpp
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DENABLE_LIBCAMERA=ON
+cmake --build build
 export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
 ./build/phc_infer_mobilenet ../checkpoints/mobilenet_v3_3cls.onnx /path/to/leaf.jpg
 ```
 
 ---
 
-## 7. ABI note
+## Unit tests
 
-Build and run with the **same ONNX Runtime major version** at link time and runtime; ship `libonnxruntime.so*` next to the binary or set `LD_LIBRARY_PATH`.
+**Catch2** (fetched by CMake) drives **`phc_tests`**, enabled by default (`ENABLE_TESTS=ON`).
+
+Tests cover preprocessing and color normalization (`tests/test_preprocess.cpp`): RGB frame → NCHW tensor shape, rejection of non-RGB formats, and BGR/RGB packed pixel handling.
+
+```bash
+cmake --preset local-release
+cmake --build --preset local-release
+ctest --test-dir build/local-release --output-on-failure
+# or:
+./build/local-release/phc_tests
+```
 
 ---
 
-## 8. Web live preview (headless Pi, file artifacts)
+## ONNX Runtime ABI
 
-**`live_infer_web`** runs the live camera pipeline and serves a self-contained web UI directly from the binary. [`web/live/index.html`](../web/live/index.html) is embedded at build time (see [`cmake/embed_html.cmake`](cmake/embed_html.cmake)).
+Link and run with the **same ONNX Runtime major version**. Ship `libonnxruntime.so*` next to binaries or set `LD_LIBRARY_PATH`. CMake sets `BUILD_RPATH` / `INSTALL_RPATH` for development and deploy layouts.
 
-**Build** (needs libcamera):
+---
+
+## Live web preview (`live_infer_web`)
+
+Runs the camera pipeline and serves a self-contained UI from the binary. [`web/live/index.html`](../web/live/index.html) is embedded at build time via [`cmake/embed_html.cmake`](cmake/embed_html.cmake).
+
+**Build:**
 
 ```bash
+cmake --preset rpi-zero2w-release   # libcamera ON by default for Pi preset
+# or locally, if libcamera dev packages are installed:
 cmake -B build -S . -DENABLE_LIBCAMERA=ON
 cmake --build build
 ```
 
-**Run** on the Pi:
+**Run on the Pi:**
 
 ```bash
 export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
-./build/live_infer_web /path/to/mobilenet_v3_3cls.onnx --port 8080
+./build/rpi-zero2w-release/live_infer_web /path/to/mobilenet_v3_3cls.onnx --port 8080
 ```
 
-Then open `http://<pi>:8080/` in a browser.
+Open `http://<pi-ip>:8080/` in a browser.
 
-**HTTP surface**:
+### HTTP endpoints
 
 | Endpoint | Content type | Purpose |
 |----------|--------------|---------|
-| `GET /` | `text/html` | Embedded live UI page |
-| `GET /stream.mjpg` | `multipart/x-mixed-replace; boundary=phcframe` | Live MJPEG preview, one part per frame |
-| `GET /events` | `text/event-stream` | SSE stream of inference result JSON (`timestamp_ns`, `label`, `label_name`, `confidence`, `logits`, `probabilities`, `inference_ms`, `encode_ms`) |
-| `GET /metrics` | `application/json` | Pi system metrics for the live page (load average, memory, CPU temperature, CPU percent). Intended for ~1 Hz polling. Missing `/proc` or `/sys` fields are omitted, not faked |
+| `GET /` | `text/html` | Embedded live UI |
+| `GET /stream.mjpg` | `multipart/x-mixed-replace; boundary=phcframe` | MJPEG preview |
+| `GET /events` | `text/event-stream` | SSE inference JSON (`timestamp_ns`, `label`, `label_name`, `confidence`, `logits`, `probabilities`, `inference_ms`, `encode_ms`) |
+| `GET /metrics` | `application/json` | System metrics (~1 Hz): load, memory, CPU temperature, CPU percent |
 | `GET /healthz` | `text/plain` | Liveness probe |
 
-**CLI flags**: `--port N` (default `8080`), `--bind HOST` (default `0.0.0.0`). JPEG encode quality is fixed in `HttpStreamDisplayConfig` (default `50`).
+**CLI:** `--port N` (default `8080`), `--bind HOST` (default `0.0.0.0`). JPEG quality is set in `HttpStreamDisplayConfig` (default `50`).
 
-The server is HTTP only; prefer firewall rules or binding to `127.0.0.1` plus SSH port-forwarding if the network is not trusted.
+The server is HTTP only. Use firewall rules or bind to `127.0.0.1` with SSH port forwarding on untrusted networks.
 
 ---
 
-## 9. File map (current)
+## CMake options and presets
 
-| File | Purpose |
+| Option | Default | Effect |
+|--------|---------|--------|
+| `ENABLE_LIBCAMERA` | OFF (ON in `rpi-zero2w-*` presets) | Build `phc_camera_libcamera` and `live_infer_web` |
+| `ENABLE_TESTS` | ON | Build `phc_tests` and register CTest |
+
+Presets in [`CMakePresets.json`](CMakePresets.json):
+
+| Preset | Platform | Binary dir |
+|--------|----------|------------|
+| `local-release` / `local-debug` | Native x86_64 | `build/local-release`, `build/local-debug` |
+| `rpi-zero2w-release` / `rpi-zero2w-debug` | Cross aarch64 | `build/rpi-zero2w-release`, `build/rpi-zero2w-debug` |
+
+Requires **`ONNXRUNTIME_ROOT`** (set in preset `environment` or exported). Cross presets require **`RPI_SYSROOT`**.
+
+---
+
+## Source layout
+
+| Path | Purpose |
 |------|---------|
-| `src/mobilenet/` … | Preprocess, ORT run, console output helpers |
-| `tools/infer_mobilenet.cpp` | CLI: model + image or `--tensor-bin` (builds `phc_infer_mobilenet`) |
-| `tools/evaluate_mobilenet.cpp` | CLI: model + test folder, metrics (builds `phc_evaluate_mobilenet`) |
-| `src/server_http/http_stream_server.*` | In-process HTTP server: MJPEG (`/stream.mjpg`) + SSE (`/events`) + embedded HTML (`/`) |
-| `src/server_http/http_stream_display.*` | `IDisplay` that JPEG-encodes each frame and pushes it to `HttpStreamServer` |
-| `apps/live_infer_web/main.cpp` | Live pipeline + in-process HTTP server (requires libcamera). Run with `--port N` |
-| `cmake/embed_html.cmake` | Generates `embedded_index_html.cpp` from `web/live/index.html` at build time |
-| `CMakeLists.txt` | ORT discovery, vendored stb + cpp-httplib includes, binaries |
-| `third_party/stb/` | Vendored `stb_image.h` and `stb_image_write.h` headers |
-| `third_party/cpp-httplib/` | Vendored `httplib.h` (MIT, pinned to v0.46.0) |
-
-Future work for your roadmap: **toolchain file** for cross-builds, expanded **test/** tree.
+| `src/preprocess/mobilenet_preprocess.*` | Image/file → NCHW tensor |
+| `src/inference_ort/ort_engine.*` | ORT session, metadata, forward pass |
+| `src/core/` | `Frame`, `TensorF32`, RGB normalize, logging |
+| `src/mobilenet/mobilenet_common.*` | Shared label/metrics helpers for CLIs |
+| `src/camera_libcamera/` | libcamera → `Frame` |
+| `src/app_runtime/live_pipeline.*` | Live capture → infer → display callback |
+| `src/server_http/` | HTTP server, MJPEG encoder, embedded HTML |
+| `tools/infer_mobilenet.cpp` | `phc_infer_mobilenet` |
+| `tools/evaluate_mobilenet.cpp` | `phc_evaluate_mobilenet` |
+| `apps/live_infer_web/main.cpp` | `live_infer_web` |
+| `tests/test_preprocess.cpp` | Catch2 unit tests |
+| `toolchains/rpi-aarch64/toolchain.cmake` | Pi cross-compile toolchain |
+| `toolchains/gcc/toolchain.cmake` | Native GCC warnings/flags |
+| `cmake/embed_html.cmake` | HTML → C++ embedding |
+| `third_party/stb/` | `stb_image`, `stb_image_write` |
+| `third_party/cpp-httplib/` | `httplib.h` (v0.46.0) |
+| `CMakeLists.txt` | Targets, ORT discovery, FetchContent Catch2 |

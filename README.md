@@ -2,11 +2,11 @@
 
 Train a lightweight **MobileNet-v3-Small** classifier for plant leaf health, export it to **ONNX**, and run inference on a **Raspberry Pi Zero 2 W** with **ONNX Runtime (C++)**. The model predicts three classes: **healthy**, **diseased**, and **background** (non-leaf / empty frame).
 
-This repository is focused on a single production path—**train → export → deploy**—not on comparing multiple backbones. PyTorch handles training and validation on a development machine; the Pi runs a native C++ stack for batch evaluation, single-image inference, and optional live camera preview over HTTP.
+The workflow is **train → export → deploy**. PyTorch handles training and validation on a development machine; the Pi runs a native C++ stack for batch evaluation, single-image inference, and optional live camera preview over HTTP.
 
 ---
 
-## What this project does
+## Overview
 
 | Stage | Where it runs | What happens |
 |-------|----------------|--------------|
@@ -19,7 +19,7 @@ This repository is focused on a single production path—**train → export → 
 
 **Target hardware:** Raspberry Pi Zero 2 W (quad-core Cortex-A53, 512 MB RAM), typically with **Camera Module 3** and 64-bit Raspberry Pi OS.
 
-**Documented results:** see [`results/rpi_zero_2w_mobilenet_onnx_cpp.md`](results/rpi_zero_2w_mobilenet_onnx_cpp.md) (on-device accuracy and throughput) and [`results/edge_deployment_mobilenet_report.md`](results/edge_deployment_mobilenet_report.md) (deployment write-up).
+**Benchmarks and deployment notes:** [`results/rpi_zero_2w_mobilenet_onnx_cpp.md`](results/rpi_zero_2w_mobilenet_onnx_cpp.md) (on-device accuracy and throughput) and [`results/edge_deployment_mobilenet_report.md`](results/edge_deployment_mobilenet_report.md).
 
 ---
 
@@ -78,14 +78,14 @@ plant-health-classification/
 ### Build machine (C++ / cross-compile)
 
 - **CMake 3.16+**, C++17 compiler
-- **ONNX Runtime** CPU build for your host (`linux-x64`) and/or Pi (`linux-aarch64`) — use [`scripts/download_onnxruntime.sh`](scripts/download_onnxruntime.sh)
-- **Cross-compile to Pi (optional):** `aarch64-linux-gnu` toolchain + sysroot — see [`cpp/README.md`](cpp/README.md) and [`cpp/toolchains/rpi-aarch64/`](cpp/toolchains/rpi-aarch64/)
-- **Live camera web UI (optional):** libcamera development headers (`-DENABLE_LIBCAMERA=ON`)
+- **ONNX Runtime** CPU build for your host (`linux-x64`) and/or Pi (`linux-aarch64`) — [`scripts/download_onnxruntime.sh`](scripts/download_onnxruntime.sh)
+- **Cross-compile to Pi:** `aarch64-linux-gnu` toolchain + sysroot — [`cpp/README.md`](cpp/README.md) and [`cpp/toolchains/rpi-aarch64/`](cpp/toolchains/rpi-aarch64/)
+- **Live camera web UI:** libcamera development headers (`-DENABLE_LIBCAMERA=ON`)
 
 ### Raspberry Pi Zero 2 W
 
 - **64-bit** Raspberry Pi OS (aarch64)
-- ONNX model file and `phc_*` binaries (deployed via [`scripts/deploy_rpi_zero2w.sh`](scripts/deploy_rpi_zero2w.sh) or built natively on the Pi)
+- ONNX model file and `phc_*` binaries (via [`scripts/deploy_rpi_zero2w.sh`](scripts/deploy_rpi_zero2w.sh) or a native Pi build)
 - `libonnxruntime.so` on `LD_LIBRARY_PATH` or next to binaries
 
 ---
@@ -112,7 +112,7 @@ python prepare_data.py
 python prepare_data.py --seed 42
 ```
 
-**Background class (required for 3-class training)** — adds `background/` under train, val, and test:
+**Background class** — adds `background/` under train, val, and test:
 
 ```bash
 python prepare_background_data.py
@@ -184,6 +184,7 @@ export ONNXRUNTIME_ROOT="$(pwd)/third_party/onnxruntime/onnxruntime-linux-x64-1.
 cd cpp
 cmake --preset local-release
 cmake --build --preset local-release
+ctest --test-dir build/local-release --output-on-failure
 
 export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
 ./build/local-release/phc_infer_mobilenet ../checkpoints/mobilenet_v3_3cls.onnx /path/to/leaf.jpg
@@ -196,11 +197,11 @@ export LD_LIBRARY_PATH="${ONNXRUNTIME_ROOT}/lib:${LD_LIBRARY_PATH}"
 bash scripts/validate_cpp_inference.sh /path/to/leaf.jpg
 ```
 
-Full C++ architecture, cross-compilation, unit tests, and live web UI: **[`cpp/README.md`](cpp/README.md)**.
+C++ architecture, cross-compilation, unit tests, and the live web UI: **[`cpp/README.md`](cpp/README.md)**.
 
 ### Deploy to Raspberry Pi Zero 2 W
 
-1. Cross-build (or build on the Pi) with the **aarch64** ONNX Runtime package.
+1. Cross-build with the **aarch64** ONNX Runtime package (see [`cpp/README.md`](cpp/README.md)), or build natively on the Pi.
 2. Copy artifacts:
 
 ```bash
@@ -231,32 +232,30 @@ export LD_LIBRARY_PATH="$PWD/lib:${LD_LIBRARY_PATH}"
 3. `python train.py`
 4. `python export_mobilenet_onnx.py`
 5. `python evaluate.py` (optional sanity check on PC)
-6. Build C++ (`cpp/`), validate parity (`scripts/validate_cpp_inference.sh`)
+6. Build C++ (`cpp/`), run unit tests (`ctest`), validate parity (`scripts/validate_cpp_inference.sh`)
 7. Deploy to Pi (`scripts/deploy_rpi_zero2w.sh`) and run `phc_evaluate_mobilenet` or `live_infer_web`
 
 ---
 
-## C++ tools (summary)
+## C++ tools
 
 | Binary | Purpose |
 |--------|---------|
 | `phc_infer_mobilenet` | Single image → class label |
 | `phc_evaluate_mobilenet` | Folder of `healthy/` / `diseased/` / `background/` → metrics + timing |
-| `live_infer_web` | Camera + in-process HTTP (MJPEG + SSE); optional build |
+| `live_infer_web` | Camera + in-process HTTP (MJPEG + SSE); built with `-DENABLE_LIBCAMERA=ON` |
 
 Preprocessing (224×224, ImageNet norm, NCHW) lives in `cpp/src/preprocess/`. Inference uses a shared ORT wrapper under `cpp/src/inference_ort/`.
 
 ---
 
-## Adding another backbone (optional)
+## Extending training with another backbone
 
 The training stack is model-agnostic via a small registry:
 
 1. Add `models/your_model.py` with `create_*_model(num_classes, ...)`.
 2. Register it in [`models/registry.py`](models/registry.py) (factory + epochs, batch size, lr, dropout).
-3. Train with `python train.py --model <key>` and add a dedicated ONNX export path if you deploy it on the Pi.
-
-The **edge runtime** today is wired for MobileNet preprocessing and artifact names only; a new deployed model needs matching C++ preprocess and export scripts.
+3. Train with `python train.py --model <key>` and add a matching ONNX export script and C++ preprocess path for Pi deployment.
 
 ---
 
