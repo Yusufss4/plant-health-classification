@@ -1,8 +1,7 @@
 """
 Evaluation utilities for model performance assessment.
 
-This module provides comprehensive evaluation metrics and visualization tools
-for comparing EfficientNet-B0 and MobileViT-v2 models.
+Model-agnostic metrics and visualization helpers for PyTorch classifiers.
 """
 
 import time
@@ -641,8 +640,8 @@ def plot_comprehensive_evaluation(results, model_name='Model', save_dir=None):
     return plot_paths
 
 
-def compare_models_comprehensive(results1, results2, model1_name='EfficientNet-B0', 
-                                 model2_name='MobileViT-v2', save_dir=None):
+def compare_models_comprehensive(results1, results2, model1_name='Model 1',
+                                 model2_name='Model 2', save_dir=None):
     """
     Comprehensive comparison of two models with all metrics and plots.
     

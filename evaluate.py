@@ -3,16 +3,15 @@ Evaluation script for plant health classification models.
 
 Usage:
     python evaluate.py [--model MODEL_TYPE]
-    
+
 Arguments:
-    --model: 'cnn', 'mobilenet_v3', or 'vit'. Default: 'cnn'
+    --model: Registered model key (default: mobilenet_v3)
 """
 
 import argparse
-import os
 import torch
 
-from models import create_cnn_model, create_mobilenet_v3_model, create_vit_model
+from models import build_model, get_model_spec, list_model_types
 from utils import (
     DEFAULT_CLASSES,
     create_data_loaders,
@@ -37,16 +36,17 @@ def _checkpoint_class_info(checkpoint, fallback_num_classes=3):
 def load_model(model_type, weights_path, device):
     """
     Load a trained model from checkpoint.
-    
+
     Args:
-        model_type: Type of model ('cnn', 'mobilenet_v3', or 'vit')
+        model_type: Registered model key
         weights_path: Path to model weights
         device: Device to load model on
-    
+
     Returns:
         tuple: (loaded model, class_names list)
     """
-    print(f'Loading {model_type.upper()} model from {weights_path}...')
+    spec = get_model_spec(model_type)
+    print(f'Loading {spec.display_name} ({model_type}) from {weights_path}...')
 
     checkpoint = torch.load(weights_path, map_location=device)
     state_dict = (
@@ -58,15 +58,15 @@ def load_model(model_type, weights_path, device):
         checkpoint if isinstance(checkpoint, dict) else {}
     )
 
-    if model_type == 'cnn':
-        model = create_cnn_model(num_classes=num_classes)
-    elif model_type == 'mobilenet_v3':
-        model = create_mobilenet_v3_model(num_classes=num_classes)
-    elif model_type == 'vit':
-        model = create_vit_model(num_classes=num_classes)
-    else:
-        raise ValueError(f"Unknown model type: {model_type}")
+    if isinstance(checkpoint, dict) and 'model_type' in checkpoint:
+        ckpt_type = checkpoint['model_type']
+        if ckpt_type != model_type:
+            print(
+                f'  Warning: checkpoint model_type={ckpt_type!r} differs from '
+                f'CLI --model={model_type!r}; using CLI.'
+            )
 
+    model = build_model(model_type, num_classes=num_classes)
     model.load_state_dict(state_dict)
 
     if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
@@ -93,12 +93,12 @@ def load_model(model_type, weights_path, device):
     return model, class_names
 
 
-def evaluate_single_model(model_type='cnn'):
+def evaluate_single_model(model_type='mobilenet_v3'):
     """
     Evaluate a single model on the test set.
-    
+
     Args:
-        model_type: Type of model to evaluate ('cnn', 'mobilenet_v3', or 'vit')
+        model_type: Registered model key
     """
     test_dir = 'data/test'
     batch_size = 32
@@ -147,21 +147,16 @@ def main():
     parser.add_argument(
         '--model',
         type=str,
-        default='cnn',
-        choices=['cnn', 'vit', 'mobilenet_v3'],
-        help='Model type to evaluate. Default: cnn'
+        default='mobilenet_v3',
+        choices=list_model_types(),
+        help='Registered model type (default: mobilenet_v3)',
     )
 
     args = parser.parse_args()
-
-    model_names = {
-        'cnn': 'EfficientNet-B0',
-        'vit': 'DINOv3 Vision Transformer',
-        'mobilenet_v3': 'MobileNet-v3-Small',
-    }
+    spec = get_model_spec(args.model)
 
     print("=" * 80)
-    print(f"Evaluating {model_names[args.model]} Model")
+    print(f"Evaluating {spec.display_name} Model")
     print("=" * 80)
     evaluate_single_model(model_type=args.model)
 

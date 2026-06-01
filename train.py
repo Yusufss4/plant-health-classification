@@ -3,9 +3,9 @@ Training script for plant health classification models.
 
 Usage:
     python train.py [--model MODEL_TYPE]
-    
+
 Arguments:
-    --model: 'cnn', 'vit', 'mobilenet_v3', or 'both' (cnn+vit). Default: both
+    --model: Registered model key (default: mobilenet_v3)
 """
 
 import argparse
@@ -15,100 +15,73 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 
-from models import create_cnn_model, create_mobilenet_v3_model, create_vit_model
+from models import build_model, get_model_spec, list_model_types
 from utils import DEFAULT_CLASSES, create_data_loaders, calculate_metrics_per_epoch
 
 
 def train_epoch(model, train_loader, criterion, optimizer, device, epoch):
     """Train for one epoch."""
     model.train()
-    
+
     running_loss = 0.0
     correct = 0
     total = 0
-    
+
     pbar = tqdm(train_loader, desc=f'Epoch {epoch} [Train]')
     for images, labels in pbar:
         images = images.to(device)
         labels = labels.to(device)
-        
-        # Forward pass
+
         outputs = model(images)
         loss = criterion(outputs, labels)
-        
-        # Backward pass
+
         optimizer.zero_grad()
         loss.backward()
-        
-        # Gradient clipping (for ViT stability)
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        
         optimizer.step()
-        
-        # Statistics
+
         running_loss += loss.item()
         _, predicted = torch.max(outputs, 1)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
-        
-        # Update progress bar
+
         pbar.set_postfix({
             'loss': running_loss / (pbar.n + 1),
             'acc': 100. * correct / total
         })
-    
+
     epoch_loss = running_loss / len(train_loader)
     epoch_acc = correct / total
-    
+
     return epoch_loss, epoch_acc
 
 
 def validate(model, val_loader, criterion, device, epoch):
     """Validate the model."""
     val_loss, val_acc = calculate_metrics_per_epoch(model, val_loader, device)
-    
+
     print(f'Epoch {epoch} [Val] - Loss: {val_loss:.4f}, Acc: {val_acc:.4f} ({val_acc*100:.2f}%)')
-    
+
     return val_loss, val_acc
 
 
-def train_model(model_type='cnn'):
+def train_model(model_type='mobilenet_v3'):
     """Main training function."""
-    
-    # Hardcoded configuration
+    spec = get_model_spec(model_type)
+
     data_dir = 'data/'
     num_classes = 3  # healthy, diseased, background
-    if model_type == 'cnn':
-        epochs = 10
-        batch_size = 32
-        lr = 0.0001
-        dropout = 0.3
-    elif model_type == 'mobilenet_v3':
-        # Bumped from 10 -> 15 because the 3-class boundary is harder than
-        # the original 2-class one and the dataset is ~30% larger.
-        epochs = 15
-        batch_size = 32
-        lr = 0.0001
-        dropout = 0.2
-    elif model_type == 'vit':
-        epochs = 25
-        batch_size = 16
-        lr = 0.0001
-        dropout = 0.1
-    else:
-        raise ValueError(
-            f"Unknown model type: {model_type}. Use 'cnn', 'mobilenet_v3', or 'vit'"
-        )
-    
+    epochs = spec.epochs
+    batch_size = spec.batch_size
+    lr = spec.lr
+    dropout = spec.dropout
     weight_decay = 1e-4
     checkpoint_dir = 'checkpoints'
     num_workers = 4
-    
-    # Set device
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
-    
-    # Create data loaders
+
     print('\nLoading data...')
     train_loader, val_loader, _ = create_data_loaders(
         train_dir=data_dir + 'train',
@@ -117,7 +90,7 @@ def train_model(model_type='cnn'):
         batch_size=batch_size,
         num_workers=num_workers
     )
-    
+
     print(f'Train samples: {len(train_loader.dataset)}')
     print(f'Val samples: {len(val_loader.dataset)}')
 
@@ -137,73 +110,53 @@ def train_model(model_type='cnn'):
     )
     saved_checkpoint = False
 
-    # Create model
-    print(f'\nCreating {model_type.upper()} model (num_classes={num_classes})...')
-    if model_type == 'cnn':
-        model = create_cnn_model(num_classes=num_classes, dropout=dropout)
-    elif model_type == 'mobilenet_v3':
-        model = create_mobilenet_v3_model(num_classes=num_classes, dropout=dropout)
-    else:  # vit
-        model = create_vit_model(num_classes=num_classes, dropout=dropout)
-    
+    print(f'\nCreating {spec.display_name} ({model_type}, num_classes={num_classes})...')
+    model = build_model(model_type, num_classes=num_classes, dropout=dropout)
     model = model.to(device)
     print(f'Total parameters: {model.get_num_parameters():,}')
-    
-    # Loss function
+
     criterion = nn.CrossEntropyLoss()
-    
-    # Optimizer - use Adam for both models
     optimizer = optim.Adam(
         model.parameters(),
         lr=lr,
         weight_decay=weight_decay
     )
-    
-    # Training history
+
     history = {
         'train_loss': [],
         'train_acc': [],
         'val_loss': [],
         'val_acc': []
     }
-    
+
     best_val_loss = float('inf')
     best_val_acc = 0.0
-    
-    # Create checkpoint directory
+
     os.makedirs(checkpoint_dir, exist_ok=True)
-    
+
     print(f'\nTraining for {epochs} epochs...\n')
-    
-    # Training loop
+
     for epoch in range(1, epochs + 1):
-        # Train
         train_loss, train_acc = train_epoch(
             model, train_loader, criterion, optimizer, device, epoch
         )
-        
-        # Validate
+
         val_loss, val_acc = validate(model, val_loader, criterion, device, epoch)
-        
-        # Save history
+
         history['train_loss'].append(train_loss)
         history['train_acc'].append(train_acc)
         history['val_loss'].append(val_loss)
         history['val_acc'].append(val_acc)
-        
-        # Print epoch summary
+
         print(f'\nEpoch {epoch}/{epochs} Summary:')
         print(f'  Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f} ({train_acc*100:.2f}%)')
         print(f'  Val Loss:   {val_loss:.4f}, Val Acc:   {val_acc:.4f} ({val_acc*100:.2f}%)')
         print(f'  Train-Val Gap: {abs(train_acc - val_acc)*100:.2f}%')
-        
-        # Save best model
+
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_val_acc = val_acc
 
-            # _3cls suffix keeps the previous 2-class checkpoint files intact on
-            # disk while this 3-class run produces parallel artifacts.
             torch.save({
                 'epoch': epoch,
                 'model_type': model_type,
@@ -217,9 +170,9 @@ def train_model(model_type='cnn'):
             }, checkpoint_path)
             saved_checkpoint = True
             print(f'  ✅ Saved best model (val_loss: {val_loss:.4f}, val_acc: {val_acc:.4f})')
-        
+
         print('-' * 80)
-    
+
     print(f'\n{"="*80}')
     print('Training completed!')
     print(f'Best Val Loss: {best_val_loss:.4f}')
@@ -229,49 +182,28 @@ def train_model(model_type='cnn'):
     else:
         print('No checkpoint was saved (validation loss never improved).')
     print(f'{"="*80}')
-    
+
     return history
 
 
 def main():
-    """Train model(s) based on command line argument."""
+    """Train model based on command line argument."""
     parser = argparse.ArgumentParser(description='Train plant health classification model')
     parser.add_argument(
         '--model',
         type=str,
-        default='both',
-        choices=['cnn', 'vit', 'mobilenet_v3', 'both'],
-        help='Model type: cnn (EfficientNet-B0), mobilenet_v3, vit, or both (cnn+vit)'
+        default='mobilenet_v3',
+        choices=list_model_types(),
+        help='Registered model type (default: mobilenet_v3)',
     )
-    
+
     args = parser.parse_args()
-    
-    model_names = {
-        'cnn': 'EfficientNet-B0',
-        'vit': 'DINOv3 Vision Transformer',
-        'mobilenet_v3': 'MobileNet-v3-Small',
-    }
+    spec = get_model_spec(args.model)
 
-    if args.model == 'mobilenet_v3':
-        print("=" * 80)
-        print(f"Training {model_names['mobilenet_v3']} Model")
-        print("=" * 80)
-        train_model(model_type='mobilenet_v3')
-        return
-
-    if args.model == 'both' or args.model == 'cnn':
-        print("="*80)
-        print(f"Training {model_names['cnn']} Model")
-        print("="*80)
-        train_model(model_type='cnn')
-    
-    if args.model == 'both' or args.model == 'vit':
-        if args.model == 'both':
-            print("\n\n")
-        print("="*80)
-        print(f"Training {model_names['vit']} Model")
-        print("="*80)
-        train_model(model_type='vit')
+    print("=" * 80)
+    print(f"Training {spec.display_name} Model")
+    print("=" * 80)
+    train_model(model_type=args.model)
 
 
 if __name__ == '__main__':

@@ -285,14 +285,12 @@ def main():
         print("=" * 80)
         print("\n1. Add background class (required for 3-class training):")
         print("   python prepare_background_data.py")
-        print("\n2. Train models (3 classes):")
-        print("   python train.py --model mobilenet_v3")
-        print("   python train.py --model cnn")
-        print("   python train.py --model vit")
-        print("\n3. Export ONNX for edge deployment (MobileNet):")
+        print("\n2. Train model (3 classes):")
+        print("   python train.py")
+        print("\n3. Export ONNX for edge deployment:")
         print("   python export_mobilenet_onnx.py")
         print("\n4. Evaluate:")
-        print("   python evaluate.py --model mobilenet_v3")
+        print("   python evaluate.py")
 
     except Exception as e:
         print(f"\n❌ Error during data preparation: {e}")

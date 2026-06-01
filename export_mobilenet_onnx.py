@@ -19,11 +19,10 @@ import numpy as np
 import onnx
 import torch
 
-from models import create_mobilenet_v3_model
+from models import build_model, get_model_spec
 from utils import DEFAULT_CLASSES
 
-# Must match train.py mobilenet_v3 branch
-DROPOUT = 0.2
+MODEL_TYPE = "mobilenet_v3"
 DEFAULT_CHECKPOINT = "checkpoints/mobilenet_v3_3cls_best.pth"
 DEFAULT_OUTPUT = "checkpoints/mobilenet_v3_3cls.onnx"
 
@@ -88,8 +87,12 @@ def export_onnx(
     ckpt = load_checkpoint(checkpoint_path, device)
     num_classes, class_names = checkpoint_class_info(ckpt)
 
-    model = create_mobilenet_v3_model(
-        num_classes=num_classes, dropout=DROPOUT, pretrained=False
+    dropout = get_model_spec(MODEL_TYPE).dropout
+    model = build_model(
+        MODEL_TYPE,
+        num_classes=num_classes,
+        dropout=dropout,
+        pretrained=False,
     )
     if "model_state_dict" in ckpt:
         model.load_state_dict(ckpt["model_state_dict"])
@@ -135,8 +138,12 @@ def verify_onnx(
     device = torch.device("cpu")
     ckpt = load_checkpoint(checkpoint_path, device)
 
-    model = create_mobilenet_v3_model(
-        num_classes=num_classes, dropout=DROPOUT, pretrained=False
+    dropout = get_model_spec(MODEL_TYPE).dropout
+    model = build_model(
+        MODEL_TYPE,
+        num_classes=num_classes,
+        dropout=dropout,
+        pretrained=False,
     )
     if "model_state_dict" in ckpt:
         model.load_state_dict(ckpt["model_state_dict"])
@@ -198,7 +205,7 @@ def main():
     if not os.path.isfile(args.checkpoint):
         raise FileNotFoundError(
             f"Checkpoint not found: {args.checkpoint}. Train with "
-            "`python train.py --model mobilenet_v3` first."
+            "`python train.py` first."
         )
 
     num_classes, _ = export_onnx(args.checkpoint, args.output, opset=args.opset)
