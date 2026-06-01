@@ -33,8 +33,8 @@ namespace fs = std::filesystem;
 namespace {
 
 // Canonical class ordering. The runtime test set may omit some of these
-// directories (e.g. legacy 2-class layouts), in which case those labels simply
-// receive zero support and the confusion matrix shrinks accordingly.
+// directories (e.g. legacy 2-class layouts); those labels get zero support but
+// the confusion matrix and printed metrics still use the full k x k layout.
 const std::vector<std::string>& ClassNames() {
   static const std::vector<std::string> kNames = {
       "healthy", "diseased", "background"};
@@ -247,8 +247,9 @@ int main(int argc, char** argv) {
     }
     if (!warned_logit_mismatch && r.logits.size() != k) {
       std::cerr << "Warning: model outputs " << r.logits.size()
-                << " logits but binary expected " << k
-                << ". Using raw model output size.\n";
+                << " logits but " << k << " classes expected. Argmax uses all "
+                << "outputs; predictions are clamped to [0, " << (k - 1)
+                << "] for the confusion matrix.\n";
       warned_logit_mismatch = true;
     }
     const int pred = Argmax(r.logits);

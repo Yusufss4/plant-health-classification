@@ -49,4 +49,10 @@ const std::string_view ${SYMBOL}(
 }  // namespace phc
 ")
 
+# Ensure parent directory exists when OUTPUT is nested (e.g. build/generated/...).
+get_filename_component(output_dir "${OUTPUT}" DIRECTORY)
+if(output_dir)
+  file(MAKE_DIRECTORY "${output_dir}")
+endif()
+
 file(WRITE "${OUTPUT}" "${out}")

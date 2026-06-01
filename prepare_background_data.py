@@ -66,8 +66,9 @@ SYNTHETIC_FRACTION = 0.10
 IMG_SIZE = 224
 RESIZE_SHORT_SIDE = 256
 
-# Direct download URLs (no TFDS). These are the same files TFDS hits internally.
-COCO_BASE = "http://images.cocodataset.org"
+# Direct download URLs (no TFDS). Same S3 bucket as http://images.cocodataset.org/;
+# use the path-style S3 HTTPS endpoint because the CNAME's TLS cert does not match.
+COCO_BASE = "https://s3.amazonaws.com/images.cocodataset.org"
 COCO_TRAIN_IMAGES_URL = f"{COCO_BASE}/zips/train2017.zip"
 COCO_TRAINVAL_ANN_URL = f"{COCO_BASE}/annotations/annotations_trainval2017.zip"
 
