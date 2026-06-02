@@ -240,6 +240,3 @@ checkpoints/
 third_party/onnxruntime/
 cpp/build/
 *.pth
-*.png
-*.jpg
-*.jpeg
