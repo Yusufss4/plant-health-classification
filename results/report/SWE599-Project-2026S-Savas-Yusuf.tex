@@ -65,9 +65,6 @@ CPU & Quad-core ARM Cortex-A53 ($\sim$1 GHz class) \\
 RAM & 512 MB \\
 \hline
 Acceleration & inference is \textbf{CPU-bound} \\
-\hline
-Role & Baseline for always-on or field-style deployments \\
-\hline
 \end{tabular}
 \end{center}
 \end{table}
@@ -76,9 +73,9 @@ Role & Baseline for always-on or field-style deployments \\
 
 \begin{itemize}
 \item \textbf{Model}: \textbf{MobileNet V3}~\cite{howard2019mobilenetv3} exported to \textbf{ONNX}~\cite{onnx} for deployment.
-\item \textbf{Runtime}: \textbf{ONNX Runtime}~\cite{onnxruntime} used from \textbf{C++}, not Python, so latency and FPS reflect the actual on-device stack instead of extra interpreter overhead.
+\item \textbf{Runtime}: \textbf{ONNX Runtime}~\cite{onnxruntime} used from \textbf{C++}
 \item \textbf{Pipeline}: \textbf{Image in $\rightarrow$ MobileNet-style preprocessing $\rightarrow$ ONNX Runtime inference $\rightarrow$ class scores / label}.
-\item \textbf{Web UI}: a \textbf{web portal} on the device (or on the LAN) shows \textbf{camera view}, \textbf{live predictions}, \textbf{summary metrics}, and \textbf{throughput (e.g.\ FPS or images per second)}.
+\item \textbf{Web UI}: a \textbf{web portal} on the device (or on the LAN) shows \textbf{camera view}, \textbf{live predictions}, \textbf{summary metrics}, and \textbf{throughput (FPS or images per second)}.
 \end{itemize}
 
 \section{Use}
@@ -123,7 +120,7 @@ For a \textbf{demo}, you open the \textbf{web page} on your phone or laptop (on 
 \hline
 \textbf{Presentation} & Web UI (portal) for status, predictions, FPS, and optional history or session summary. \\
 \hline
-\textbf{Application / API} & Serves the UI and exposes inference status and metrics to it (e.g.\ HTTP or WebSocket). \\
+\textbf{Application / API} & Serves the UI and exposes inference status and metrics to it (WebSocket). \\
 \hline
 \textbf{Inference} & Loads the \textbf{MobileNet V3 ONNX} graph, applies consistent preprocessing, runs \textbf{ONNX Runtime} on the device CPU. \\
 \hline
@@ -139,14 +136,6 @@ For a \textbf{demo}, you open the \textbf{web page} on your phone or laptop (on 
 
 \begin{itemize}
 \item Ability to score a \textbf{fixed labeled test split} and report \textbf{classification metrics} (accuracy, balanced accuracy, precision/recall/F1 for the diseased class, specificity) and a \textbf{confusion matrix}, independent of the portal, for rigorous comparison between FP32 and INT8 builds.
-\end{itemize}
-
-\section{Quality}
-
-\begin{itemize}
-\item \textbf{Deployability}: run on \textbf{512 MB RAM} and a \textbf{quad-core A53} CPU without a GPU on the edge device.
-\item \textbf{Reproducibility}: evaluation procedures and hardware context are recorded so accuracy and throughput numbers remain comparable across model variants.
-\item \textbf{Observability}: \textbf{accuracy} (from labeled runs) is separable from \textbf{latency / throughput} (portal and benchmarks); end-to-end timing includes load, preprocess, and runtime where applicable.
 \end{itemize}
 
 \chapter{Designed System}
@@ -218,10 +207,6 @@ The C++ code lives under \path{cpp/} as a \textbf{CMake} project (C++17, ONNX Ru
 \section{Web portal}
 
 The portal is a single self-contained page (\path{web/live/index.html}, vanilla HTML/CSS/JavaScript) embedded into the binary at build time via \path{cpp/cmake/embed_html.cmake}. It shows the MJPEG preview (\texttt{<img src="/stream.mjpg">}), subscribes to predictions with \texttt{EventSource('/events')}, renders per-class probability bars, computes \textbf{FPS} from a rolling one-second window of events, and polls \texttt{/metrics} once per second for CPU load, memory, and temperature.
-
-\section{Testing, cross-compilation, and deployment}
-
-Unit tests use \textbf{Catch2} (\path{cpp/tests/test_preprocess.cpp}) to validate tensor shape and channel handling, and \path{scripts/validate_cpp_inference.sh} checks Python-vs-C++ parity on identical preprocessed tensors. The Pi target is built with the cross toolchain in \path{cpp/toolchains/rpi-aarch64/}; \path{scripts/download_onnxruntime.sh} fetches the matching ONNX Runtime, and \path{scripts/deploy_rpi_zero2w.sh} pushes the binary and model to the device.
 
 \chapter{Demonstration}
 
