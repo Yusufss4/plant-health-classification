@@ -1,0 +1,30 @@
+flowchart TB
+  subgraph Data["Prepared dataset"]
+    direction LR
+    PV["PlantVillage\nhealthy / diseased"]
+    COCO["COCO + synthetic\nbackground"]
+    SPLIT["70 / 15 / 15 split"]
+    PV --> SPLIT
+    COCO --> SPLIT
+  end
+
+  subgraph Train["Training loop"]
+    direction TB
+    AUG["Augment: flip, rotate, jitter"]
+    BAL["Weighted sampler"]
+    MB["MobileNet V3-small\nImageNet backbone"]
+    HEAD["3-class head"]
+    ADAM["Adam, cross-entropy, 15 epochs"]
+    VAL["Validation loss"]
+    CKPT["Best checkpoint"]
+    AUG --> BAL --> MB --> HEAD --> ADAM --> VAL --> CKPT
+  end
+
+  subgraph Eval["Evaluation"]
+    TEST["Held-out test split"]
+    MET["Accuracy, per-class metrics,\nconfusion matrix"]
+    TEST --> MET
+  end
+
+  SPLIT --> AUG
+  CKPT --> TEST

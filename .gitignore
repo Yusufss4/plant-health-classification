@@ -240,3 +240,4 @@ checkpoints/
 third_party/onnxruntime/
 cpp/build/
 *.pth
+CLAUDE.md

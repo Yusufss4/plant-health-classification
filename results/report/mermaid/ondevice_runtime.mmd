@@ -1,0 +1,36 @@
+flowchart TB
+  CAM["Pi Camera Module 3"]
+
+  subgraph Capture["Capture"]
+    LC["libcamera stack"]
+    RGB["RGB888 frame buffer"]
+    CAM --> LC --> RGB
+  end
+
+  subgraph Infer["Inference (C++ / ONNX Runtime)"]
+    PRE["Preprocess\nresize 224×224, ImageNet norm\n(NEON on aarch64)"]
+    ORT["ONNX session\nMobileNet V3 graph"]
+    OUT["Softmax + argmax\nlabel + probabilities"]
+    RGB --> PRE --> ORT --> OUT
+  end
+
+  subgraph Serve["HTTP server"]
+    MJPEG["/stream.mjpg\nMJPEG preview"]
+    SSE["/events\nServer-Sent Events"]
+    MET["/metrics\ndevice telemetry"]
+    UI["/ web portal"]
+    OUT --> SSE
+    RGB --> MJPEG
+    UI --> MJPEG
+    UI --> SSE
+    UI --> MET
+  end
+
+  BROWSER["Browser on LAN\n(phone or laptop)"]
+  UI --> BROWSER
+  MJPEG --> BROWSER
+  SSE --> BROWSER
+  MET --> BROWSER
+
+  FILES[("Labeled test images")]
+  FILES -->|"batch evaluation"| PRE

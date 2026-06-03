@@ -14,6 +14,8 @@
 %\usepackage{xtab}
 \usepackage{multirow}
 \usepackage{subfigure}
+\usepackage{float}
+\usepackage{placeins}
 %\pagestyle{empty}
 %\includeonly{introduction} % To only process the given file
 
@@ -37,15 +39,13 @@
 
 \chapter{Introduction}
 
-Running machine learning on the edge means running models on small devices near where data is collected or where people use them, not only in big cloud servers. That helps when you care about fast responses, keeping data local, unreliable internet, or saving battery and power. A typical approach is to save a trained model in a portable format and run it with a small runtime on a compact computer or even a tiny microcontroller.
+Plant pests and diseases destroy up to \textbf{40\%} of global crop production each year and cost the world economy about \textbf{US\$220 billion} annually~\cite{fao2021pests}; major staple crops see \textbf{10--40\%} yield losses to pathogens~\cite{savary2019global}. Catching disease early from a leaf image enables timely treatment, less blanket pesticide use, and better yield protection, especially for smallholders who rarely have fast access to a pathologist.
 
-This work focuses on \textbf{edge deployment of a plant health classifier}: given a leaf image, the system predicts whether the plant appears \textbf{healthy} or \textbf{diseased}. The \textbf{motivation} includes:
-
+We build an \textbf{edge-deployed} classifier on a \textbf{Raspberry Pi Zero 2 W}~\cite{raspberrypi_zero2w}: a camera image is labeled \textbf{healthy}, \textbf{diseased}, or \textbf{background} (non-leaf) using \textbf{MobileNet V3}~\cite{howard2019mobilenetv3} exported to \textbf{ONNX}~\cite{onnx} and run with \textbf{ONNX Runtime}~\cite{onnxruntime} from \textbf{C++} for predictable, low-memory inference. The main focus points are:
 \begin{itemize}
-\item \textbf{Engineering}: validate that a compact CNN (\textbf{MobileNet V3}~\cite{howard2019mobilenetv3}) can run end-to-end on constrained hardware (\textbf{Raspberry Pi Zero 2 W}~\cite{raspberrypi_zero2w}) with acceptable accuracy and measurable throughput.
-\item \textbf{Learning}: understand the \textbf{role of quantization and INT8-oriented optimization}~\cite{jacob2018quantization} in that setting. Quantization reduces numeric precision (often from FP32 to INT8) to shrink model size and speed up CPU inference; the trade-off is potential accuracy loss. Documented results establish an \textbf{FP32 ONNX baseline} on the Pi so a later \textbf{INT8} deployment can be compared on accuracy, latency, and throughput.
-\item \textbf{Native code vs.\ Python on the edge}: \textbf{C++} skips the Python interpreter and \textbf{GIL}, so it can run faster on a small CPU and use \textbf{512 MB RAM} more predictably. \textbf{ONNX Runtime}~\cite{onnxruntime} is often called from \textbf{native} code in production. \textbf{Python} is still a good fit for training and quick tests; \textbf{C++} is a common choice for \textbf{always-on} or \textbf{camera-stream} inference on tight hardware.
-\item \textbf{Real-world validation}: Even if a model does well on well-chosen leaf photos, we need to see how it works ``in real life'' with real leaves, real lighting, and photos taken with an actual camera. This testing checks if the model handles blur, bad lighting, background mess, and camera noise. It helps find problems before the system is used for real.
+\item Train on public leaf and background data, then deploy the same preprocessing and graph on the Pi.
+\item Measure \textbf{accuracy and throughput} on device (FP32 baseline vs.\ \textbf{INT8} quantization~\cite{jacob2018quantization}).
+\item Expose results through a \textbf{web portal} and validate with a \textbf{real camera}, test bench, and field-style captures,not only dataset images.
 \end{itemize}
 
 \chapter{Description}
@@ -54,19 +54,19 @@ This work focuses on \textbf{edge deployment of a plant health classifier}: give
 
 \textbf{Raspberry Pi Zero 2 W} was chosen as a \textbf{low-cost, resource-constrained} edge node:
 
-\begin{table}[h!]
-\begin{center}
-\begin{tabular}{|l|l|}
+\begin{table}[htbp]
+\centering
+\begin{tabular}{|l|p{0.62\textwidth}|}
 \hline
 \textbf{Item} & \textbf{Detail} \\
 \hline
-CPU & Quad-core ARM Cortex-A53 ($\sim$1 GHz class) \\
+CPU & Quad-core ARM Cortex-A53 ($\sim$1\,GHz) \\
 \hline
-RAM & 512 MB \\
+RAM & 512\,MB \\
 \hline
-Acceleration & inference is \textbf{CPU-bound} \\
+Inference & CPU only (no GPU or NPU) \\
+\hline
 \end{tabular}
-\end{center}
 \end{table}
 
 \section{Software}
@@ -165,56 +165,116 @@ A reduced-precision build (e.g.\ \textbf{INT8} weight quantization) targets \tex
 
 \chapter{Implementation}
 
-The system is implemented in two stages: a \textbf{Python} training/export pipeline on a development workstation, and a \textbf{C++} on-device runtime that serves a web portal on the Raspberry Pi. Both stages share the same tensor contract (input \texttt{[1,3,224,224]} float32 NCHW, ImageNet normalization) so on-device results are comparable to the reference evaluation.
+The system is built in two stages that share the same image representation, so results obtained on the workstation carry over to the device. First, a model is trained and exported on a development workstation. Second, an on-device runtime loads that model and serves a web portal on the Raspberry Pi. Both stages feed the network the same input: a $224\times224$ RGB image, normalized with the standard ImageNet statistics, so the on-device numbers are directly comparable to the reference evaluation.
 
 \section{Data preparation}
 
-Two scripts build a three-class dataset (\textbf{healthy}, \textbf{diseased}, \textbf{background}):
+The classifier is trained on a three-class dataset: \textbf{healthy}, \textbf{diseased}, and \textbf{background}. The leaf classes come from \textbf{PlantVillage}~\cite{hughes2015plantvillage}, a large public collection of single-leaf photographs taken on a plain background. PlantVillage originally labels leaves with 38 fine-grained categories (crop $\times$ disease); for this work those are collapsed into a binary health signal: any leaf marked as healthy becomes \textbf{healthy}, and every other label becomes \textbf{diseased}.
 
-\begin{itemize}
-\item \path{prepare_data.py} downloads \textbf{PlantVillage}~\cite{hughes2015plantvillage} through TensorFlow Datasets. The 38 fine-grained PlantVillage labels are collapsed into two classes: any label containing \texttt{healthy} maps to \textbf{healthy}, all others to \textbf{diseased}.
-\item \path{prepare_background_data.py} adds a \textbf{background} class from \textbf{COCO 2017}~\cite{lin2014coco} (plus a small synthetic fraction) so the deployed model can reject non-leaf scenes from a live camera.
-\end{itemize}
+A model trained only on clean leaf photos has no way to say ``this is not a leaf,'' which is a problem for a live camera that constantly sees hands, tables, and clutter. To handle this, a \textbf{background} class is added from \textbf{COCO 2017}~\cite{lin2014coco}, a dataset of everyday non-leaf scenes, supplemented with a small fraction of synthetic background images. This lets the deployed model reject non-leaf input instead of being forced to guess healthy or diseased.
 
-Images are split \textbf{70\,/\,15\,/\,15} into train/val/test and written to \path{data/{train,val,test}/{healthy,diseased,background}/}.
+The combined dataset is split \textbf{70\,/\,15\,/\,15} into training, validation, and test sets, keeping the three classes separated so that accuracy can be measured on images the model never saw during training.
 
-\section{Training pipeline (Python)}
+\begin{figure}[H]
+\centering
+\subfigure[PlantVillage leaf samples (healthy / diseased)]{\includegraphics[width=0.46\textwidth]{dataset-plant-village.png}}
+\hfill
+\subfigure[COCO 2017 background samples]{\includegraphics[width=0.46\textwidth]{dataset-coco.png}}
+\caption{Dataset sources. Leaf images provide the healthy and diseased classes; non-leaf scenes provide the background class so the model can reject non-leaf input.}
+\label{fig:datasets}
+\end{figure}
+\FloatBarrier
 
-\begin{itemize}
-\item \textbf{Model} (\path{models/mobilenet_v3.py}): wraps torchvision \texttt{mobilenet\_v3\_small} with ImageNet-pretrained weights; the classifier head is replaced with \texttt{Dropout(0.2)} followed by a \texttt{Linear} layer sized to the number of classes.
-\item \textbf{Data loading} (\path{utils/data_loader.py}): resize to \textbf{224$\times$224}, ImageNet normalization (mean \texttt{[0.485,0.456,0.406]}, std \texttt{[0.229,0.224,0.225]}); training augmentations are horizontal flip, $\pm$15$^\circ$ rotation, and color jitter; a \texttt{WeightedRandomSampler} balances the classes.
-\item \textbf{Training} (\path{train.py}, config in \path{models/registry.py}): \textbf{15} epochs, batch size \textbf{32}, \textbf{Adam} (lr \texttt{1e-4}, weight decay \texttt{1e-4}), \texttt{CrossEntropyLoss}; the best checkpoint (lowest validation loss) is saved to \path{checkpoints/mobilenet_v3_3cls_best.pth} with class metadata.
-\item \textbf{Evaluation} (\path{evaluate.py}, \path{utils/evaluation.py}): scikit-learn metrics and confusion matrix on the held-out test split.
-\end{itemize}
+\section{Training pipeline}
+
+Training starts from a \textbf{MobileNet V3-small}~\cite{howard2019mobilenetv3} backbone that has been pretrained on ImageNet, so it already knows general visual features. Only its final classifier head is replaced with a small dropout-plus-linear layer sized to the three target classes, which lets the network adapt to the leaf task while reusing the pretrained features (transfer learning).
+
+Every image is resized to $224\times224$ and normalized with the ImageNet mean and standard deviation, matching the pretrained backbone. During training the data is augmented on the fly with horizontal flips, small ($\pm15^\circ$) rotations, and color jitter, so the model sees slightly varied versions of each leaf and generalizes better. Because the three classes are not equally represented, a weighted sampler is used to draw balanced batches, preventing the model from simply favouring the most common class.
+
+The network is trained for \textbf{15 epochs} with a batch size of \textbf{32}, using the \textbf{Adam} optimizer and a cross-entropy loss. After each epoch the model is checked against the validation set, and only the best-performing checkpoint (lowest validation loss) is kept. That checkpoint is then scored on the held-out test split to report accuracy, per-class metrics, and a confusion matrix.
+
+\IfFileExists{figures/training_pipeline.pdf}{%
+  \begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth,height=0.52\textheight,keepaspectratio]{training_pipeline.pdf}
+  \caption{Training pipeline: from the prepared dataset through augmentation and balanced sampling into the pretrained MobileNet V3-small, then validation-based checkpoint selection and held-out evaluation.}
+  \label{fig:training-pipeline}
+  \end{figure}
+}{%
+  \begin{quote}
+  \textit{Build the figure first: from \path{results/report/}, run \path{./render-mermaid.sh}.}
+  \end{quote}
+}
+\FloatBarrier
 
 \section{ONNX export and quantization}
 
-\path{export_mobilenet_onnx.py} exports the checkpoint to \path{checkpoints/mobilenet_v3_3cls.onnx} with input name \texttt{input}, output name \texttt{logits}, shape \texttt{[1,3,224,224]}, and \textbf{opset 17}. Class names and counts are embedded in the ONNX \texttt{metadata\_props}, and an optional PyTorch-vs-ONNX-Runtime parity check asserts a maximum absolute difference below \texttt{1e-3}. A reduced-precision \textbf{INT8/QDQ} build is produced in ONNX Runtime's \texttt{.ort} format (\path{mobilenet_v3_3cls_qdq.ort}) for the quantization comparison.
+For deployment, the trained model is converted out of its training framework into \textbf{ONNX}~\cite{onnx}, a portable, framework-independent graph format. The motivation is separation of concerns: training happens in a heavy Python framework, but the device only needs a frozen graph plus a fixed input/output contract (a $224\times224$ image in, three class scores out). ONNX captures exactly that, so the same model can be run by a lightweight native runtime on the Pi without dragging the training stack along. The class names are stored inside the exported model so the runtime always knows what each output means, and a parity check confirms the exported graph produces the same outputs as the original model.
+
+A second, reduced-precision build is also produced through \textbf{INT8 quantization}~\cite{jacob2018quantization}. The idea is that weights and activations, normally stored as 32-bit floats, are mapped to 8-bit integers. This shrinks the model roughly four-fold and lets the CPU use cheaper integer arithmetic, which can speed up inference on suitable hardware. The trade-off is precision: representing values with only 256 levels introduces small rounding errors, so quantized models typically lose a little accuracy. This build is kept as a controlled experiment, evaluated against the full-precision baseline on both accuracy and speed under identical conditions.
 
 \section{On-device runtime (C++)}
 
-The C++ code lives under \path{cpp/} as a \textbf{CMake} project (C++17, ONNX Runtime \textbf{1.24.4}) with the following components:
+The edge stack is implemented in \textbf{C++} with \textbf{ONNX Runtime}~\cite{onnxruntime} so inference stays close to production: no Python interpreter, predictable memory use on 512\,MB RAM, and direct access to ARM NEON for preprocessing.
 
-\begin{itemize}
-\item \textbf{Preprocessing} (\path{cpp/src/preprocess/mobilenet_preprocess.cpp}): a single fused pass performs bilinear resize, optional R/B channel swap, and ImageNet normalization into the NCHW tensor; a \textbf{NEON}-accelerated path is used on aarch64.
-\item \textbf{Inference} (\path{cpp/src/inference_ort/ort_engine.cpp}): loads the ONNX/ORT graph, runs an ONNX Runtime session via IO binding, and applies softmax and argmax to produce a label and probabilities.
-\item \textbf{Camera} (\path{cpp/src/camera_libcamera/libcamera_camera.cpp}): captures frames through \textbf{libcamera}~\cite{libcamera} and converts them to RGB888.
-\item \textbf{HTTP server} (\path{cpp/src/server_http/http_stream_server.cpp}, using \textbf{cpp-httplib}): serves the UI at \texttt{/}, an MJPEG preview at \texttt{/stream.mjpg}, inference events via Server-Sent Events at \texttt{/events}, and device telemetry at \texttt{/metrics}.
-\item \textbf{Live application} (\path{cpp/apps/live_infer_web/main.cpp}): wires camera $\rightarrow$ preprocess $\rightarrow$ engine $\rightarrow$ web display together; default port \textbf{8080}.
-\item \textbf{Batch tool} (\path{cpp/tools/evaluate_mobilenet.cpp}, \texttt{phc\_evaluate\_mobilenet}): scores a labeled folder and reports accuracy, per-class metrics, a confusion matrix, and throughput. This tool produced the on-device numbers in the next chapter.
-\end{itemize}
+\textbf{Capture.} The Pi Camera Module 3 feeds frames through the \textbf{libcamera}~\cite{libcamera} stack on Linux. Each frame is converted to an RGB888 buffer suitable for the preprocessor.
+
+\textbf{Preprocessing.} A single fused pass resizes the image to $224\times224$, applies optional channel-order correction, and normalizes with the ImageNet mean and standard deviation into the NCHW layout expected by the exported graph. On aarch64 this path uses \textbf{NEON} vector instructions to keep preprocessing from dominating latency.
+
+\textbf{Inference.} ONNX Runtime loads the frozen MobileNet V3 graph, binds input and output tensors, runs one forward pass per frame, then applies softmax and argmax to obtain the predicted class and per-class probabilities.
+
+\textbf{Serving.} A lightweight HTTP server exposes the web portal at the root URL, an MJPEG preview stream for live video, Server-Sent Events for prediction updates, and a metrics endpoint for CPU load, memory, and temperature. A separate batch-evaluation mode replays labeled folders through the same preprocess-and-infer path to produce the accuracy and throughput numbers reported in the Results chapter.
+
+\IfFileExists{figures/ondevice_runtime.pdf}{%
+  \begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth,height=0.48\textheight,keepaspectratio]{ondevice_runtime.pdf}
+  \caption{On-device runtime: camera capture through preprocessing and ONNX Runtime inference, with HTTP endpoints feeding the browser portal and optional batch evaluation from stored images.}
+  \label{fig:ondevice-runtime}
+  \end{figure}
+}{%
+  \begin{quote}
+  \textit{Build the figure first: from \path{results/report/}, run \path{./render-mermaid.sh}.}
+  \end{quote}
+}
+\FloatBarrier
 
 \section{Web portal}
 
-The portal is a single self-contained page (\path{web/live/index.html}, vanilla HTML/CSS/JavaScript) embedded into the binary at build time via \path{cpp/cmake/embed_html.cmake}. It shows the MJPEG preview (\texttt{<img src="/stream.mjpg">}), subscribes to predictions with \texttt{EventSource('/events')}, renders per-class probability bars, computes \textbf{FPS} from a rolling one-second window of events, and polls \texttt{/metrics} once per second for CPU load, memory, and temperature.
+The portal is a self-contained web page served from the device on the local network. It shows the live MJPEG camera preview, the predicted label with per-class probability bars, a rolling throughput estimate (FPS), and device health metrics updated about once per second. Operators can point the camera at healthy or diseased leaves and see predictions change in real time; the background class lets the model reject non-leaf scenes instead of guessing.
 
-\chapter{Demonstration}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{web-app-diseased.png}
+\caption{Web portal: live preview, predicted label with per-class probabilities, FPS, and device metrics.}
+\label{fig:web-portal}
+\end{figure}
+\FloatBarrier
 
-This chapter first shows the system in everyday use through the \textbf{live web portal}, then reports \textbf{benchmark-style} runs on the edge device (Raspberry Pi Zero 2 W, ONNX Runtime via native code) and a \textbf{development workstation} reference (PyTorch on \textbf{CUDA}). On-device runs cover both \textbf{FP32} ONNX and \textbf{INT8/QDQ} ORT builds; sample counts are noted per table (\textbf{8106} images for the 2-class leaf-only split, \textbf{12606} images for the 3-class split that includes the background class).
+\section{Test bench}
 
-\section{Live web portal}
+Repeatable field-style testing needs a stable camera pose over leaf samples. A \textbf{3D-printed test bench} (PLA filament) holds the Pi camera at a fixed height and angle above a flat leaf stage, so successive captures share similar framing and lighting.
 
-In a demo, the device runs \path{live_infer_web} and the operator opens \path{http://<pi-ip>:8080/} from a phone or laptop on the same network. The page (Figure~\ref{fig:system-architecture} shows the underlying data flow) presents the \textbf{live camera preview}, the \textbf{predicted label} with per-class \textbf{probability bars}, the current \textbf{throughput (FPS)}, and \textbf{device metrics} (CPU load, memory, temperature). Showing healthy and diseased leaves to the camera, or stepping through example images, updates the label and probabilities in real time while the background class lets the model reject non-leaf scenes.
+\begin{figure}[H]
+\centering
+\subfigure[CAD front]{\includegraphics[width=0.42\textwidth]{3d-design-front.png}}
+\hfill
+\subfigure[CAD back]{\includegraphics[width=0.42\textwidth]{3d-design-back.png}}
+\caption{3D-printed (PLA) test-bench camera stand, CAD model.}
+\label{fig:testbench-cad}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{3d-design-real.jpg}
+\caption{Printed test bench in use with the Pi camera and a leaf sample.}
+\label{fig:testbench-real}
+\end{figure}
+\FloatBarrier
+
+\chapter{Results}
+
+This chapter reports \textbf{benchmark-style} runs on the edge device (Raspberry Pi Zero 2 W, ONNX Runtime via native C++) and a \textbf{development workstation} reference (PyTorch on \textbf{CUDA}). On-device runs cover both \textbf{FP32} ONNX and \textbf{INT8/QDQ} ORT builds; sample counts are noted per table (\textbf{8106} images for the 2-class leaf-only split, \textbf{12606} images for the 3-class split that includes the background class).
 
 \section{Pi Zero 2 W -- FP32 (2-class, 8106 images)}
 
@@ -362,7 +422,7 @@ Throughput & 15.730 img/s \\
 
 \section{Pi Zero 2 W -- INT8/QDQ (3-class, 12606 images)}
 
-The INT8/QDQ ORT build (\path{mobilenet_v3_3cls_qdq.ort}) trades a few accuracy points for a smaller footprint. Two runs are reported: a single-thread run and a 4-thread run.
+The INT8/QDQ ORT build trades a few accuracy points for a smaller footprint. Two runs are reported: a single-thread run and a 4-thread run.
 
 \textbf{Overall metrics}
 
@@ -440,28 +500,6 @@ Throughput & 6.045 img/s & 9.832 img/s \\
 \end{center}
 \end{table}
 
-\section{Summary comparison}
-
-\begin{table}[h!]
-\begin{center}
-\begin{tabular}{|l|r|r|}
-\hline
-\textbf{Build (split, threads)} & \textbf{Accuracy} & \textbf{Throughput} \\
-\hline
-FP32 (2-class, 8106) & 99.83\% & 8.028 img/s \\
-\hline
-FP32 (3-class, 12606, 4 thr.) & 99.81\% & 15.730 img/s \\
-\hline
-INT8/QDQ (3-class, 12606, 1 thr.) & 97.21\% & 6.045 img/s \\
-\hline
-INT8/QDQ (3-class, 12606, 4 thr.) & 97.05\% & 9.832 img/s \\
-\hline
-\end{tabular}
-\end{center}
-\end{table}
-
-On the Pi Zero 2 W, \textbf{FP32} keeps accuracy near the reference while \textbf{multi-threading} roughly doubles throughput. The \textbf{INT8/QDQ} build loses about \textbf{2.5--2.7} accuracy points (mostly on the healthy/diseased boundary) and, in this ORT configuration, does not beat multi-threaded FP32 on speed, so FP32 with 4 threads is the strongest on-device operating point measured here.
-
 \section{Dev PC (GPU, reference)}
 
 \textbf{Setup} (example): Ubuntu 24.04 LTS on \textbf{WSL2}; \textbf{CPU}: AMD Ryzen 7 5800H; \textbf{GPU}: NVIDIA GeForce RTX 3050 Laptop (4 GB VRAM).
@@ -532,18 +570,42 @@ Throughput & 751.23 img/s \\
 \end{center}
 \end{table}
 
+\section{Summary comparison}
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|r|r|}
+\hline
+\textbf{Build (split, threads)} & \textbf{Accuracy} & \textbf{Throughput} \\
+\hline
+FP32 (2-class, 8106) & 99.83\% & 8.028 img/s \\
+\hline
+FP32 (3-class, 12606, 4 thr.) & 99.81\% & 15.730 img/s \\
+\hline
+INT8/QDQ (3-class, 12606, 1 thr.) & 97.21\% & 6.045 img/s \\
+\hline
+INT8/QDQ (3-class, 12606, 4 thr.) & 97.05\% & 9.832 img/s \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+On the Pi Zero 2 W, \textbf{FP32} keeps accuracy near the reference while \textbf{multi-threading} roughly doubles throughput. The \textbf{INT8/QDQ} build loses about \textbf{2.5--2.7} accuracy points (mostly on the healthy/diseased boundary) and, in this ORT configuration, does not beat multi-threaded FP32 on speed, so FP32 with 4 threads is the strongest on-device operating point measured here.
+
 \chapter{Conclusions and Future Work}
 
-On the \textbf{Pi Zero 2 W}, \textbf{FP32 ONNX} with \textbf{ONNX Runtime} stays accurate on the held-out test set ($\sim$99.8\%) and runs at about \textbf{8 images/s} single-threaded, rising to about \textbf{16 images/s} with four threads on the three-class split. The \textbf{INT8/QDQ} build trades roughly \textbf{2.5--2.7} accuracy points for a smaller artifact but, in this ORT configuration, did not outperform multi-threaded FP32 on throughput; multi-threaded FP32 is therefore the strongest on-device operating point measured here. These results give a solid baseline before further speedups. \textbf{Testing with a real camera in real conditions} still matters, because lab-style test images do not cover everything you see in the field.
+On the \textbf{Pi Zero 2 W}, \textbf{FP32 ONNX} with \textbf{ONNX Runtime} stays accurate on the held-out test set ($\sim$99.8\%) and runs at about \textbf{8 images/s} single-threaded, rising to about \textbf{16 images/s} with four threads on the three-class split. The \textbf{INT8/QDQ} build trades roughly \textbf{2.5--2.7} accuracy points for a smaller artifact but, in this ORT configuration, did not outperform multi-threaded FP32 on throughput; multi-threaded FP32 is therefore the strongest on-device operating point measured here.
+
+\textbf{Why INT8 did not speed up inference.} Quantized INT8 graphs are often faster on CPUs that offer wide integer SIMD or dedicated dot-product instructions (for example x86 VNNI or newer ARM cores with int8 matrix extensions). The Pi Zero 2 W uses a \textbf{quad-core ARM Cortex-A53} (aarch64): it has NEON for \textbf{FP32} float math, but lacks the wider int8 acceleration that many QDQ kernels expect. ONNX Runtime's INT8 path on this core still pays dequantization and requantization overhead around integer ops, so the theoretical savings from 8-bit arithmetic are largely offset. In practice the NEON-friendly \textbf{FP32} kernels remain faster than INT8/QDQ on this hardware.
+
+These results give a solid baseline before further speedups. \textbf{Testing with a real camera in real conditions} still matters, because lab-style test images do not cover everything you see in the field.
 
 \section{Future work}
 
 \begin{itemize}
 \item \textbf{Field tests}: systematic runs \textbf{outdoors / in greenhouses} with \textbf{natural lighting} and varied distances, not only dataset-style images, now that the live camera path exists.
-\item \textbf{Quantization recovery}: close the INT8 accuracy gap with \textbf{quantization-aware training} or per-channel calibration, and tune runtime flags and threading for Cortex-A53 to raise images per second.
-\item \textbf{UI}: make \textbf{FPS}, latency, and errors easy to see when inference or the camera degrades.
 \item \textbf{Calibration}: optional score calibration or thresholds for diseased vs healthy when moving from lab to field.
-\end{itemize}
+\item \textbf{Speedups}: tune runtime flags and threading for Cortex-A53 to raise images per second.
 
 \bibliographystyle{styles/fbe_tez_v11}
 \bibliography{references}

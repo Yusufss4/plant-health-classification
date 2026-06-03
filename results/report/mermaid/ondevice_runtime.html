@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: 8.27in 5.2in; margin: 0; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
+    font-size: 11px;
+    background: #fff;
+    color: #1a1a2e;
+    padding: 28px 32px 24px;
+  }
+
+  h1 {
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-align: center;
+    margin-bottom: 22px;
+    color: #1a1a2e;
+  }
+
+  /* ── layout ─────────────────────────────────────────── */
+  .diagram {
+    display: grid;
+    grid-template-columns: 170px 40px 320px 40px 170px;
+    grid-template-rows: auto;
+    align-items: start;
+    gap: 0;
+    width: 100%;
+  }
+
+  /* ── group panels ────────────────────────────────────── */
+  .group {
+    border: 1.5px solid #4a6fa5;
+    border-radius: 8px;
+    padding: 10px 10px 12px;
+  }
+
+  .group-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #4a6fa5;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #ccd9ee;
+  }
+
+  /* colour themes */
+  .capture  { border-color: #2d7d46; background: #f2fbf5; }
+  .capture  .group-title { color: #2d7d46; border-color: #aee0bc; }
+
+  .infer    { border-color: #1a5fb4; background: #f0f5fd; }
+  .infer    .group-title { color: #1a5fb4; border-color: #b8d0f0; }
+
+  .serve    { border-color: #7a4fb5; background: #f7f3fd; }
+  .serve    .group-title { color: #7a4fb5; border-color: #d0b8f0; }
+
+  /* ── nodes ───────────────────────────────────────────── */
+  .node {
+    border: 1.5px solid #8899bb;
+    border-radius: 6px;
+    background: #fff;
+    padding: 6px 8px;
+    text-align: center;
+    line-height: 1.35;
+    font-size: 10.5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+
+  .node.device  { background: #fff8e6; border-color: #c8921a; color: #5a3d00; font-weight: 600; }
+  .node.capture { background: #e8f8ed; border-color: #2d7d46; }
+  .node.infer   { background: #e8f0fc; border-color: #1a5fb4; }
+  .node.serve   { background: #f1ebfc; border-color: #7a4fb5; }
+  .node.browser { background: #fafafa; border-color: #555; color: #222; }
+  .node.files   { background: #fef9e6; border-color: #b8860b; border-style: dashed; }
+  .node sub-label { font-size: 9px; color: #666; display: block; }
+
+  .col-nodes { display: flex; flex-direction: column; gap: 8px; }
+
+  /* ── arrows ──────────────────────────────────────────── */
+  .arrow-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding-top: 36px;        /* rough vertical centring */
+    color: #4a6fa5;
+    font-size: 18px;
+    line-height: 1;
+  }
+  .arrow-col.down { padding-top: 0; writing-mode: horizontal-tb; }
+
+  /* vertical arrow inside a group */
+  .v-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #4a6fa5;
+    font-size: 14px;
+    margin: 3px auto;
+    line-height: 1;
+  }
+  .v-arrow .line { width: 1.5px; background: #4a6fa5; flex: 1; min-height: 6px; }
+
+  /* ── outer vertical flow column ─────────────────────── */
+  .outer-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  /* ── small label on an arrow ─────────────────────────── */
+  .arrow-label {
+    font-size: 8.5px;
+    color: #666;
+    white-space: nowrap;
+    margin: 1px 0;
+  }
+
+  /* horizontal arrow between columns */
+  .h-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    color: #4a6fa5;
+    font-size: 16px;
+  }
+</style>
+</head>
+<body>
+<h1>On-Device Runtime — Raspberry Pi Zero 2 W</h1>
+
+<div class="diagram">
+
+  <!-- ── col 1: Camera + Capture group ── -->
+  <div style="display:flex; flex-direction:column; gap:10px;">
+
+    <div class="node device" style="text-align:center;">
+      Pi Camera Module 3
+    </div>
+
+    <div class="v-arrow">
+      <div class="line" style="min-height:10px;"></div>
+      ▼
+    </div>
+
+    <div class="group capture">
+      <div class="group-title">Capture</div>
+      <div class="col-nodes">
+        <div class="node capture">libcamera stack</div>
+        <div class="v-arrow"><div class="line"></div>▼</div>
+        <div class="node capture">RGB888<br>frame buffer</div>
+      </div>
+    </div>
+
+    <div class="v-arrow">
+      <div class="line" style="min-height:10px;"></div>
+      ▼
+    </div>
+
+    <!-- Files source -->
+    <div class="node files" style="text-align:center;">
+      Labeled test images<br>
+      <span style="font-size:9px;color:#888;">(batch evaluation)</span>
+    </div>
+
+  </div>
+
+  <!-- ── col 2: arrow → ── -->
+  <div class="arrow-col" style="padding-top:60px;">
+    →
+  </div>
+
+  <!-- ── col 3: Inference group ── -->
+  <div style="display:flex; flex-direction:column; gap:10px;">
+    <div class="group infer" style="flex:1;">
+      <div class="group-title">Inference (C++ / ONNX Runtime)</div>
+      <div class="col-nodes">
+        <div class="node infer">
+          Preprocess<br>
+          <span style="font-size:9px;color:#555;">resize 224×224, ImageNet norm<br>(NEON on aarch64)</span>
+        </div>
+        <div class="v-arrow"><div class="line"></div>▼</div>
+        <div class="node infer">
+          ONNX session<br>
+          <span style="font-size:9px;color:#555;">MobileNet V3 graph</span>
+        </div>
+        <div class="v-arrow"><div class="line"></div>▼</div>
+        <div class="node infer">
+          Softmax + argmax<br>
+          <span style="font-size:9px;color:#555;">label + probabilities</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── col 4: arrow → ── -->
+  <div class="arrow-col" style="padding-top:60px;">
+    →
+  </div>
+
+  <!-- ── col 5: HTTP server + Browser ── -->
+  <div style="display:flex; flex-direction:column; gap:10px;">
+    <div class="group serve">
+      <div class="group-title">HTTP Server</div>
+      <div class="col-nodes">
+        <div class="node serve"><code>/stream.mjpg</code><br><span style="font-size:9px;color:#555;">MJPEG preview</span></div>
+        <div class="v-arrow"><div class="line"></div></div>
+        <div class="node serve"><code>/events</code><br><span style="font-size:9px;color:#555;">Server-Sent Events</span></div>
+        <div class="v-arrow"><div class="line"></div></div>
+        <div class="node serve"><code>/metrics</code><br><span style="font-size:9px;color:#555;">device telemetry</span></div>
+        <div class="v-arrow"><div class="line"></div></div>
+        <div class="node serve"><code>/</code> web portal</div>
+      </div>
+    </div>
+
+    <div class="v-arrow">
+      <div class="line" style="min-height:10px;"></div>
+      ▼
+    </div>
+
+    <div class="node browser" style="text-align:center;">
+      Browser on LAN<br>
+      <span style="font-size:9px;color:#555;">(phone or laptop)</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── data-flow note at bottom ────────────────────────────── -->
+<div style="margin-top:18px; border-top:1px solid #dde3f0; padding-top:10px;
+            display:flex; gap:24px; flex-wrap:wrap; font-size:9.5px; color:#555;">
+  <span><span style="color:#2d7d46; font-weight:600;">■</span> Capture path</span>
+  <span><span style="color:#1a5fb4; font-weight:600;">■</span> Inference path (live &amp; batch)</span>
+  <span><span style="color:#7a4fb5; font-weight:600;">■</span> HTTP / streaming path</span>
+  <span style="margin-left:auto; font-style:italic;">RGB888 frame → preprocess → ORT → label + confidence → SSE → browser</span>
+</div>
+
+</body>
+</html>
