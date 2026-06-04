@@ -19,6 +19,15 @@
 
 \graphicspath{{figures/}}
 
+% Rounded-corner figures (TikZ clip on the image bounding box)
+\newcommand{\roundedimg}[2][]{%
+  \tikz[baseline=(current bounding box.center)]{%
+    \node[inner sep=0pt, rounded corners=0.15cm, clip] {%
+      \includegraphics[#1]{#2}%
+    };%
+  }%
+}
+
 % ====================
 % Lengths
 % ====================
@@ -84,7 +93,7 @@
 
   \begin{block}{System Architecture}
     \centering
-    \includegraphics[width=\colwidth, height=0.46\textheight, keepaspectratio]{system_architecture_crop.pdf}
+    \roundedimg[width=\colwidth, height=0.46\textheight, keepaspectratio]{system_architecture_crop.pdf}
 
     \vspace{0.5ex}
     \raggedright
@@ -94,8 +103,8 @@
 
   \begin{block}{Dataset — 3 classes, 12{,}606 images}
     \centering
-    \includegraphics[width=0.48\colwidth]{dataset-plant-village.png}\hfill
-    \includegraphics[width=0.48\colwidth]{dataset-coco.png}
+    \roundedimg[width=0.48\colwidth]{dataset-plant-village.png}\hfill
+    \roundedimg[width=0.48\colwidth]{dataset-coco.png}
 
     \vspace{0.5ex}
     \raggedright
@@ -128,7 +137,7 @@
 
   \begin{block}{Training Pipeline}
     \centering
-    \includegraphics[width=\colwidth, height=0.62\textheight, keepaspectratio]{training_pipeline_crop.pdf}
+    \roundedimg[width=\colwidth, height=0.62\textheight, keepaspectratio]{training_pipeline_crop.pdf}
   \end{block}
 
 \end{column}
@@ -142,7 +151,7 @@
 
   \begin{block}{On-Device Runtime (C++)}
     \centering
-    \includegraphics[width=\colwidth]{ondevice_runtime_crop.pdf}
+    \roundedimg[width=\colwidth]{ondevice_runtime_crop.pdf}
   \end{block}
 
   \begin{block}{Edge Benchmarks}
@@ -166,8 +175,8 @@
 
   \begin{block}{Live Demo \& Test Bench}
     \centering
-    \includegraphics[width=0.46\colwidth]{web-app-diseased.png}\hfill
-    \includegraphics[width=0.46\colwidth]{3d-design-real.jpg}
+    \roundedimg[width=0.46\colwidth]{web-app-diseased.png}\hfill
+    \roundedimg[width=0.46\colwidth]{3d-design-real.jpg}
 
     \vspace{0.5ex}
     \raggedright
