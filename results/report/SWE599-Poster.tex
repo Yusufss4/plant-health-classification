@@ -54,12 +54,13 @@
 % logo
 \logoleft{\includegraphics[height=8cm]{bu-logo.png}}
 
-% Author / advisor / institution displayed in the right side of the header bar
+% Author / advisor / institution + repo QR on the right side of the header bar
 \logoright{%
   \usebeamerfont{headline}%
   \begin{tabular}{@{}r@{}}
     {\large Yusuf Sava\c{s} \;\textbar\; Advisor: Fikret G\"urgen}\\[0.75ex]
-    {\normalsize Bo\u{g}azi\c{c}i University \;\textbar\; SWE 599 Graduate Project}
+    {\normalsize Bo\u{g}azi\c{c}i University \;\textbar\; SWE 599 Graduate Project}\\[0.75ex]
+    \includegraphics[height=3.2cm]{github-qr.png}
   \end{tabular}%
 }
 
@@ -140,7 +141,7 @@
     \roundedimg[width=\colwidth, height=0.62\textheight, keepaspectratio]{training_pipeline_v2_crop.pdf}
   \end{block}
 
-  \begin{alertblock}{Headline Results}
+  \begin{alertblock}{Live Results}
     \centering
     \begin{minipage}[t]{0.31\colwidth}
       \centering
@@ -158,7 +159,7 @@
       \centering
       {\fontsize{48}{48}\selectfont \textbf{8}}
       \\[0.5ex]
-      \small images / sec on the Pi
+      \small images / sec
     \end{minipage}
   \end{alertblock}
 
@@ -192,7 +193,8 @@
     \vspace{0.8ex}
     \raggedright
     \small Per-class F1: Healthy 0.995, Diseased 0.998, Background 0.999.
-    INT8 is \emph{slower} here — wrong tool for this silicon.
+    INT8 is \emph{slower} here — wrong tool for this silicon. These benchmarks does not include the encoding, and any other overhead.
+    And just to showcase the performance of the ONNX runtime model with different threading and quantization.
   \end{block}
 
   \begin{block}{Live Demo \& Test Bench}
