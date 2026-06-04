@@ -36,12 +36,23 @@
 
 \title{Edge Deployment: Plant Health Classification\\ with MobileNet V3 on a Raspberry Pi Zero 2 W}
 
-\author{Yusuf Sava\c{s} \quad\textbar\quad Advisor: Fikret G\"urgen}
+% Author/institute moved into the right header bar (see \logoright below)
+% to keep the blue top bar short — only the title sits in the centre column.
+\author{}
 
-\institute{Bo\u{g}azi\c{c}i University \textbar\ SWE 599 Graduate Project}
+\institute{}
 
 % logo
 \logoleft{\includegraphics[height=8cm]{bu-logo.png}}
+
+% Author / advisor / institution displayed in the right side of the header bar
+\logoright{%
+  \usebeamerfont{headline}%
+  \begin{tabular}{@{}r@{}}
+    {\large Yusuf Sava\c{s} \;\textbar\; Advisor: Fikret G\"urgen}\\[0.75ex]
+    {\normalsize Bo\u{g}azi\c{c}i University \;\textbar\; SWE 599 Graduate Project}
+  \end{tabular}%
+}
 
 % ====================
 % Body
@@ -120,11 +131,6 @@
     \includegraphics[width=\colwidth, height=0.62\textheight, keepaspectratio]{training_pipeline_crop.pdf}
   \end{block}
 
-  \begin{block}{On-Device Runtime (C++)}
-    \centering
-    \includegraphics[width=\colwidth]{ondevice_runtime_crop.pdf}
-  \end{block}
-
 \end{column}
 
 \separatorcolumn
@@ -134,19 +140,10 @@
 % =====================================================
 \begin{column}{\colwidth}
 
-  \begin{alertblock}{Headline Results}
+  \begin{block}{On-Device Runtime (C++)}
     \centering
-    \begin{minipage}{0.48\colwidth}
-      \centering
-      {\fontsize{60}{60}\selectfont \textbf{99.81\%}}\\[0.5ex]
-      test accuracy (3-class)
-    \end{minipage}%
-    \begin{minipage}{0.48\colwidth}
-      \centering
-      {\fontsize{60}{60}\selectfont \textbf{15.7}}\\[0.5ex]
-      images / sec on the Pi
-    \end{minipage}
-  \end{alertblock}
+    \includegraphics[width=\colwidth]{ondevice_runtime_crop.pdf}
+  \end{block}
 
   \begin{block}{Edge Benchmarks}
     \centering
