@@ -80,8 +80,8 @@
 
   \begin{alertblock}{The Problem}
     Pests and diseases destroy up to \textbf{40\% of global crops} every
-    year — about \textbf{US\,\$220 billion} in losses. Early, on-site
-    detection from a single leaf image protects yield and cuts blanket
+    year, about \textbf{US\,\$220 billion} in losses. Early, on-site
+    detection from leaf images, protects yield and cuts blanket
     pesticide use.
 
     \vspace{1ex}
@@ -93,7 +93,7 @@
 
   \begin{block}{System Architecture}
     \centering
-    \roundedimg[width=\colwidth, height=0.46\textheight, keepaspectratio]{system_architecture_crop.pdf}
+    \roundedimg[width=\colwidth, height=0.46\textheight, keepaspectratio]{system_architecture_v2_crop.pdf}
 
     \vspace{0.5ex}
     \raggedright
@@ -137,8 +137,30 @@
 
   \begin{block}{Training Pipeline}
     \centering
-    \roundedimg[width=\colwidth, height=0.62\textheight, keepaspectratio]{training_pipeline_crop.pdf}
+    \roundedimg[width=\colwidth, height=0.62\textheight, keepaspectratio]{training_pipeline_v2_crop.pdf}
   \end{block}
+
+  \begin{alertblock}{Headline Results}
+    \centering
+    \begin{minipage}[t]{0.31\colwidth}
+      \centering
+      {\fontsize{48}{48}\selectfont \textbf{68}}
+      \\[0.5ex]
+      \small ms inference (live)
+    \end{minipage}\hfill
+    \begin{minipage}[t]{0.31\colwidth}
+      \centering
+      {\fontsize{48}{48}\selectfont \textbf{31}}
+      \\[0.5ex]
+      \small ms encoding (live)
+    \end{minipage}\hfill
+    \begin{minipage}[t]{0.31\colwidth}
+      \centering
+      {\fontsize{48}{48}\selectfont \textbf{8}}
+      \\[0.5ex]
+      \small images / sec on the Pi
+    \end{minipage}
+  \end{alertblock}
 
 \end{column}
 
@@ -151,7 +173,7 @@
 
   \begin{block}{On-Device Runtime (C++)}
     \centering
-    \roundedimg[width=\colwidth]{ondevice_runtime_crop.pdf}
+    \roundedimg[width=\colwidth]{ondevice_runtime_v2_crop.pdf}
   \end{block}
 
   \begin{block}{Edge Benchmarks}
@@ -186,9 +208,9 @@
   \end{block}
 
   \begin{exampleblock}{Conclusion}
-    A native C++ + ONNX Runtime pipeline runs MobileNet V3 at
-    \textbf{$\sim$16 img/s} and \textbf{$\sim$99.8\%} accuracy on a
-    512\,MB Pi Zero 2 W. The background class removes the need for a second
+    A native C++ end to end pipeline runs MobileNet V3 at
+    \textbf{$\sim$8 img/s} on a Pi Zero 2 W (live demo: \textbf{inference latency $\sim$68\,ms},
+    \textbf{encoding latency $\sim$31\,ms} per frame). The background class removes the need for a second
     model, and FP32 beats INT8 on this CPU. \emph{Future work:} fine-tune on
     deployment-camera captures and add field validation in live greenhouses.
   \end{exampleblock}
