@@ -241,7 +241,8 @@ The local web portal allows users to visualize real-time interactions with the m
 
 This chapter reports inference benchmarks for the edge device (Raspberry Pi Zero 2 W running ONNX Runtime in native C++) compared against a development workstation reference (PyTorch on a Dev PC with an NVIDIA RTX 3050).
 
-The edge deployments were tested using the complete 3-class dataset (12,606 images) to validate the final pipeline, alongside a legacy 2-class split (8,106 images) for baseline comparisons.
+The edge deployments were tested using the complete 3-class dataset (12,606 images) to validate the final pipeline, alongside a legacy 2-class split (8,106 images) for baseline comparisons. Resulst only include the pipeline for processing the images, not encoding them for the web portal.
+So results are comparasion for the model and model implementation.
 
 \section{Reference Baseline (Dev PC)}
 
@@ -307,9 +308,9 @@ The benchmark results highlight a critical hardware reality regarding INT8 quant
 
 \chapter{Conclusions and Future Work}
 
-We successfully developed and deployed a highly accurate (~99.8%) MobileNet V3 classification system natively on a Raspberry Pi Zero 2 W. By formatting the model into a 3-class architecture (Healthy, Diseased, Background), the pipeline robustly rejects non-leaf imagery without requiring secondary, memory-intensive detection models.
+We successfully developed and deployed a highly accurate ~99.8\% MobileNet V3 classification system natively on a Raspberry Pi Zero 2 W. By formatting the model into a 3-class architecture (Healthy, Diseased, Background), the pipeline robustly rejects non-leaf imagery without requiring secondary, memory-intensive detection models.
 
-Using a native C++ runtime and carefully tuned multi-threading, the device processes frames at nearly \textbf{16 images per second}. While INT8 quantization was aggressively tested during development, the specific Cortex-A53 processor of the Pi Zero 2 W lacks the hardware dot-product instructions (\texttt{SDOT}/\texttt{UDOT}) required to accelerate integer math. Consequently, the overhead of converting floats to integers inside the network makes INT8 slower than standard execution. Retaining the model in FP32 allowed the engine to leverage mature NEON FMA instructions, proving to be the optimal choice for this specific silicon.
+Using a native C++ runtime and carefully tuned multi-threading, end to end pipeline processes frames and serves results at nearly \textbf{8 images per second}. (Encoding latency is 31ms and inference latency is 68ms.) While INT8 quantization was aggressively tested during development, the specific Cortex-A53 processor of the Pi Zero 2 W lacks the hardware dot-product instructions (\texttt{SDOT}/\texttt{UDOT}) required to accelerate integer math. Consequently, the overhead of converting floats to integers inside the network makes INT8 slower than standard execution. Retaining the model in FP32 allowed the engine to leverage mature NEON FMA instructions, proving to be the optimal choice for this specific silicon.
 
 Furthermore, when testing with real leaves in live environments, we observed that the camera's field of view (FOV) and variations in background color could occasionally affect the boundary between healthy and diseased classifications. To mitigate this domain shift and achieve the most reliable edge performance, future iterations of the model should ideally be trained or fine-tuned on a dataset captured directly by the specific camera hardware used for deployment.
 
