@@ -7,10 +7,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(ENABLE_LIBCAMERA "Build libcamera-based capture module" OFF)
 option(ENABLE_TESTS "Build unit tests" ON)
 
+find_package(Threads REQUIRED)
+
 if(NOT DEFINED ENV{ONNXRUNTIME_ROOT})
   message(FATAL_ERROR
     "ONNXRUNTIME_ROOT is not set. Extract the ONNX Runtime release tarball and point to it, e.g.:\n"
-    "  export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-1.17.3\n"
+    "  export ONNXRUNTIME_ROOT=/path/to/onnxruntime-linux-x64-1.24.4\n"
     "Or run: bash ../scripts/download_onnxruntime.sh"
   )
 endif()
@@ -49,13 +51,40 @@ add_library(phc_app_runtime STATIC
 target_include_directories(phc_app_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(phc_app_runtime PUBLIC phc_preprocess phc_inference_ort)
 
-add_library(phc_display_file STATIC
-  src/display_file/file_artifact_display.cpp
+# Generate embedded_index_html.cpp from web/live/index.html. Re-runs whenever
+# the HTML source changes; deleted on `cmake --build --target clean` via the
+# generated-file dependency tracking.
+set(PHC_EMBEDDED_HTML_SRC "${CMAKE_CURRENT_SOURCE_DIR}/../web/live/index.html")
+set(PHC_EMBEDDED_HTML_OUT
+  "${CMAKE_CURRENT_BINARY_DIR}/generated/embedded_index_html.cpp")
+add_custom_command(
+  OUTPUT "${PHC_EMBEDDED_HTML_OUT}"
+  COMMAND "${CMAKE_COMMAND}"
+          -DINPUT=${PHC_EMBEDDED_HTML_SRC}
+          -DOUTPUT=${PHC_EMBEDDED_HTML_OUT}
+          -DSYMBOL=kEmbeddedIndexHtml
+          -DHEADER=embedded_index_html.hpp
+          -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_html.cmake"
+  DEPENDS "${PHC_EMBEDDED_HTML_SRC}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_html.cmake"
+  VERBATIM
+  COMMENT "Embedding ${PHC_EMBEDDED_HTML_SRC} into ${PHC_EMBEDDED_HTML_OUT}"
 )
-target_include_directories(phc_display_file PUBLIC
+
+add_library(phc_server_http STATIC
+  src/server_http/http_stream_server.cpp
+  src/server_http/http_stream_display.cpp
+  "${PHC_EMBEDDED_HTML_OUT}"
+)
+target_include_directories(phc_server_http PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/src"
   "${STB_INCLUDE_DIR}"
 )
+target_include_directories(phc_server_http PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/third_party/cpp-httplib"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/server_http"
+)
+target_link_libraries(phc_server_http PUBLIC Threads::Threads)
 
 if(ENABLE_LIBCAMERA)
   find_package(PkgConfig REQUIRED)
@@ -99,7 +128,7 @@ if(ENABLE_LIBCAMERA)
   target_link_libraries(live_infer_web PRIVATE
     phc_app_runtime
     phc_camera_libcamera
-    phc_display_file
+    phc_server_http
     phc_inference_ort
     phc_preprocess
     onnxruntime
@@ -130,17 +159,8 @@ if(ENABLE_TESTS)
     endif()
   endforeach()
 
-  set(PHC_TEST_SOURCES
-    tests/test_preprocess.cpp
-  )
-  if(ENABLE_LIBCAMERA)
-    list(APPEND PHC_TEST_SOURCES tests/pi_smoke_live.cpp)
-  endif()
-  add_executable(phc_tests ${PHC_TEST_SOURCES})
+  add_executable(phc_tests tests/test_preprocess.cpp)
   target_include_directories(phc_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(phc_tests PRIVATE Catch2::Catch2WithMain phc_preprocess)
-  if(ENABLE_LIBCAMERA)
-    target_link_libraries(phc_tests PRIVATE phc_app_runtime phc_camera_libcamera phc_display_file)
-  endif()
   add_test(NAME phc_tests COMMAND phc_tests)
 endif()

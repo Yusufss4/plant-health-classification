@@ -3,17 +3,33 @@
 Save NCHW float32 tensor (same layout as cpp/infer_mobilenet --tensor-bin) and
 print ONNX Runtime logits — use to validate C++ preprocessing vs PyTorch pipeline.
 
+Tensor layout: NCHW float32, shape (1, 3, 224, 224), ImageNet-normalized.
+
 Usage:
-  python scripts/dump_ort_reference.py --image path.jpg --onnx checkpoints/mobilenet_v3.onnx \\
+  python scripts/dump_ort_reference.py --image path.jpg --onnx checkpoints/mobilenet_v3_3cls.onnx \\
       --tensor-out /tmp/mobilenet_input.bin
 """
 
 import argparse
+import json
 
 import numpy as np
+import onnx
 import onnxruntime as ort
 from PIL import Image
 from torchvision import transforms
+
+from utils import DEFAULT_CLASSES
+
+
+def read_onnx_class_names(onnx_path: str) -> list[str]:
+    model = onnx.load(onnx_path)
+    meta = {p.key: p.value for p in model.metadata_props}
+    if "class_names_json" in meta:
+        return json.loads(meta["class_names_json"])
+    if "class_names" in meta:
+        return [s.strip() for s in meta["class_names"].split(",") if s.strip()]
+    return list(DEFAULT_CLASSES)
 
 
 def main():
@@ -34,14 +50,20 @@ def main():
         ]
     )
     img = Image.open(args.image).convert("RGB")
-    t = tfm(img).numpy().astype(np.float32)  # 3,224,224
-    batch = np.expand_dims(t, axis=0)  # 1,3,224,224
+    t = tfm(img).numpy().astype(np.float32)
+    batch = np.expand_dims(t, axis=0)
     batch.tofile(args.tensor_out)
     print(f"Wrote {batch.shape} float32 tensor to {args.tensor_out}")
 
+    class_names = read_onnx_class_names(args.onnx)
     sess = ort.InferenceSession(args.onnx, providers=["CPUExecutionProvider"])
     logits = sess.run(None, {"input": batch})[0]
-    print(f"ORT logits: [{logits[0, 0]:.6f}, {logits[0, 1]:.6f}]")
+    flat = logits.reshape(-1)
+    parts = [
+        f"{class_names[i] if i < len(class_names) else f'class_{i}'}={flat[i]:.6f}"
+        for i in range(len(flat))
+    ]
+    print(f"ORT logits ({len(flat)}): " + ", ".join(parts))
 
 
 if __name__ == "__main__":

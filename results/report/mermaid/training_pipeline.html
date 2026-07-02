@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
+    font-size: 11px;
+    background: #fff;
+    color: #1a1a2e;
+    padding: 28px 36px 22px;
+  }
+
+  h1 {
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-align: center;
+    margin-bottom: 22px;
+    color: #1a1a2e;
+  }
+
+  /* ── node ────────────────────────────────────────────── */
+  .node {
+    border: 1.5px solid #8899bb;
+    border-radius: 6px;
+    background: #fff;
+    padding: 6px 12px;
+    text-align: center;
+    line-height: 1.4;
+    font-size: 10.5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+  .node.data  { background: #e8f8ed; border-color: #2d7d46; }
+  .node.train { background: #e8f0fc; border-color: #1a5fb4; }
+  .node.ckpt  { background: #ddeafc; border-color: #1a5fb4; font-weight: 600; }
+  .node.eval  { background: #fff3e6; border-color: #c8591a; }
+
+  /* ── group panels ────────────────────────────────────── */
+  .group {
+    border: 1.5px solid;
+    border-radius: 8px;
+    padding: 10px 16px 14px;
+    width: 100%;
+  }
+  .group-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid;
+    text-align: center;
+  }
+  .group.data-grp  { border-color: #2d7d46; background: #f2fbf5; }
+  .group.data-grp  .group-title { color: #2d7d46; border-bottom-color: #aee0bc; }
+  .group.train-grp { border-color: #1a5fb4; background: #f0f5fd; }
+  .group.train-grp .group-title { color: #1a5fb4; border-bottom-color: #b8d0f0; }
+  .group.eval-grp  { border-color: #c8591a; background: #fff8f2; }
+  .group.eval-grp  .group-title { color: #c8591a; border-bottom-color: #f0c0a0; }
+
+  /* ── vertical arrow ──────────────────────────────────── */
+  .v-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #4a6fa5;
+    font-size: 13px;
+    line-height: 1;
+    margin: 2px 0;
+  }
+  .v-arrow .line { width: 1.5px; background: #4a6fa5; min-height: 6px; }
+
+  /* taller arrow between groups */
+  .gap-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #4a6fa5;
+    font-size: 14px;
+    line-height: 1;
+    margin: 0;
+  }
+  .gap-arrow .line { width: 1.5px; background: #4a6fa5; min-height: 14px; }
+
+  /* ── main column ─────────────────────────────────────── */
+  .diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    max-width: 300px;
+    margin: 0 auto;
+  }
+
+  /* ── data group internals: LR two-source merge ────────── */
+  .data-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+  .two-src {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+  }
+  /* merge lines: two arms meeting at centre */
+  .merge-lines {
+    display: flex;
+    width: 60%;
+    height: 14px;
+    margin-top: 2px;
+  }
+  .merge-lines .arm-left {
+    flex: 1;
+    border-top: 1.5px solid #4a6fa5;
+    border-right: 1.5px solid #4a6fa5;
+  }
+  .merge-lines .arm-right {
+    flex: 1;
+    border-top: 1.5px solid #4a6fa5;
+    border-left: 1.5px solid #4a6fa5;
+  }
+</style>
+</head>
+<body>
+
+<div class="diagram">
+
+  <!-- ── Prepared Dataset ── -->
+  <div class="group data-grp" style="width:100%;">
+    <div class="group-title">Prepared Dataset</div>
+    <div class="data-inner" style="width:100%;">
+      <div class="two-src">
+        <div class="node data" style="font-size:9.5px;">
+          PlantVillage<br><span style="color:#555;">healthy / diseased</span>
+        </div>
+        <div class="node data" style="font-size:9.5px;">
+          COCO + synthetic<br><span style="color:#555;">background</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- inter-group arrow -->
+  <div class="gap-arrow"><div class="line"></div>▼</div>
+
+  <!-- ── Training Loop ── -->
+  <div class="group train-grp" style="width:100%;">
+    <div class="group-title">Training Loop</div>
+    <div style="display:flex; flex-direction:column; align-items:center; gap:0;">
+      <div class="node train" style="width:100%;">
+        Augment<br><span style="font-size:9px;color:#555;">flip, rotate, colour jitter</span>
+      </div>
+      <div class="v-arrow"><div class="line"></div>▼</div>
+      <div class="node train" style="width:100%;">Weighted sampler</div>
+      <div class="v-arrow"><div class="line"></div>▼</div>
+      <div class="node train" style="width:100%;">
+        MobileNet V3-Small<br><span style="font-size:9px;color:#555;">ImageNet backbone</span>
+      </div>
+      <div class="v-arrow"><div class="line"></div>▼</div>
+      <div class="node train" style="width:100%;">3-class head</div>
+      <div class="v-arrow"><div class="line"></div>▼</div>
+      <div class="node train" style="width:100%;">
+        Adam · cross-entropy<br><span style="font-size:9px;color:#555;">15 epochs</span>
+      </div>
+      <div class="v-arrow"><div class="line"></div>▼</div>
+      <div class="node train" style="width:100%;">Validation loss</div>
+      <div class="v-arrow"><div class="line"></div>▼</div>
+      <div class="node ckpt" style="width:100%;">Best checkpoint</div>
+    </div>
+  </div>
+
+  <!-- inter-group arrow -->
+  <div class="gap-arrow"><div class="line"></div>▼</div>
+
+  <!-- ── Evaluation ── -->
+  <div class="group eval-grp" style="width:100%;">
+    <div class="group-title">Evaluation</div>
+    <div style="display:flex; flex-direction:column; align-items:center; gap:0;">
+      <div class="node eval" style="width:100%;">Held-out test split</div>
+      <div class="v-arrow"><div class="line"></div>▼</div>
+      <div class="node eval" style="width:100%;">
+        Accuracy · per-class metrics<br>
+        <span style="font-size:9px;color:#a04000;">confusion matrix</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- legend -->
+<div style="margin-top:18px; max-width:300px; margin-left:auto; margin-right:auto;
+            border-top:1px solid #dde3f0; padding-top:10px;
+            display:flex; gap:18px; flex-wrap:wrap; font-size:9.5px; color:#555;">
+  <span><span style="color:#2d7d46; font-weight:600;">■</span> Dataset prep</span>
+  <span><span style="color:#1a5fb4; font-weight:600;">■</span> Training</span>
+  <span><span style="color:#c8591a; font-weight:600;">■</span> Evaluation</span>
+</div>
+
+</body>
+</html>

@@ -1,5 +1,8 @@
 #include "libcamera_camera.hpp"
 
+#include "../core/phc_log.hpp"
+#include "../core/rgb_normalize.hpp"
+
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -21,6 +24,51 @@
 
 namespace phc {
 
+namespace {
+
+// libcamera viewfinder often delivers R/B swapped vs our RGB888 pipeline; swap at ingest.
+constexpr bool kForceLiveRbSwap = true;
+
+void ApplyRequestedFocusProfile(libcamera::Request* request) {
+  if (!request) {
+    return;
+  }
+  auto& controls = request->controls();
+  controls.set(libcamera::controls::AfMode,
+               libcamera::controls::AfModeContinuous);
+  controls.set(libcamera::controls::AfRange,
+               libcamera::controls::AfRangeMacro);
+  controls.set(libcamera::controls::AfSpeed,
+               libcamera::controls::AfSpeedFast);
+}
+
+const char* PackedOrderName(PackedRgbOrder order) {
+  return (order == PackedRgbOrder::Rgb) ? "RGB" : "BGR";
+}
+
+bool ResolvePackedFormat(const libcamera::PixelFormat& pf, int& bpp,
+                         PackedRgbOrder& order) {
+  if (pf == libcamera::formats::RGB888) {
+    bpp = 3;
+    order = PackedRgbOrder::Rgb;
+    return true;
+  }
+  if (pf == libcamera::formats::BGR888) {
+    bpp = 3;
+    order = PackedRgbOrder::Bgr;
+    return true;
+  }
+  return false;
+}
+
+void LogStreamConfig(const char* stage, const libcamera::StreamConfiguration& sc) {
+  log::Debug() << "libcamera " << stage << ": format=" << sc.pixelFormat.toString()
+               << " size=" << sc.size.width << "x" << sc.size.height
+               << " stride=" << sc.stride;
+}
+
+}  // namespace
+
 struct LibcameraCamera::Impl {
   FrameCallback cb;
   std::atomic<bool> running{false};
@@ -31,6 +79,8 @@ struct LibcameraCamera::Impl {
   std::unique_ptr<libcamera::FrameBufferAllocator> allocator;
   libcamera::Stream* stream = nullptr;
   std::vector<std::unique_ptr<libcamera::Request>> requests;
+  int src_bpp = 3;
+  PackedRgbOrder src_order = PackedRgbOrder::Rgb;
   std::mutex mu;
 
   uint64_t NowNs() const {
@@ -53,22 +103,25 @@ void LibcameraCamera::OnRequestCompleted(libcamera::Request* request) {
   const auto& bufs = request->buffers();
   auto it = bufs.find(impl_->stream);
   if (it == bufs.end()) {
+    ApplyRequestedFocusProfile(request);
     request->reuse(libcamera::Request::ReuseBuffers);
     impl_->camera->queueRequest(request);
     return;
   }
   const libcamera::FrameBuffer* fb = it->second;
   if (fb->planes().empty()) {
+    ApplyRequestedFocusProfile(request);
     request->reuse(libcamera::Request::ReuseBuffers);
     impl_->camera->queueRequest(request);
     return;
   }
 
-  // Plane 0 for RGB888.
+  // Plane 0 for packed RGB-family output.
   const int fd = fb->planes()[0].fd.get();
   const size_t length = fb->planes()[0].length;
   void* map = ::mmap(nullptr, length, PROT_READ, MAP_SHARED, fd, 0);
   if (map == MAP_FAILED) {
+    ApplyRequestedFocusProfile(request);
     request->reuse(libcamera::Request::ReuseBuffers);
     impl_->camera->queueRequest(request);
     return;
@@ -79,22 +132,31 @@ void LibcameraCamera::OnRequestCompleted(libcamera::Request* request) {
   f.width = static_cast<int>(impl_->config->at(0).size.width);
   f.height = static_cast<int>(impl_->config->at(0).size.height);
   // libcamera's stride is accessible via StreamConfiguration::stride (bytes per line)
-  f.stride_bytes = static_cast<int>(impl_->config->at(0).stride);
-  if (f.stride_bytes <= 0) {
-    f.stride_bytes = f.width * 3;
-  }
+  f.stride_bytes = f.width * 3;
   f.timestamp_ns = impl_->NowNs();
 
-  const size_t needed =
-      static_cast<size_t>(f.height) * static_cast<size_t>(f.stride_bytes);
-  f.data.resize(needed);
-  std::memcpy(f.data.data(), map, std::min(needed, length));
+  const int src_stride_bytes = static_cast<int>(impl_->config->at(0).stride);
+  const bool ok = NormalizePackedToRgb888(
+      static_cast<const uint8_t*>(map), f.width, f.height, src_stride_bytes,
+      impl_->src_bpp, impl_->src_order, f.data, f.stride_bytes);
   ::munmap(map, length);
+  if (!ok) {
+    log::Error() << "libcamera: failed to normalize frame to RGB888"
+                 << " src_stride=" << src_stride_bytes
+                 << " src_bpp=" << impl_->src_bpp
+                 << " src_order=" << PackedOrderName(impl_->src_order)
+                 << " dst=" << f.width << "x" << f.height;
+    ApplyRequestedFocusProfile(request);
+    request->reuse(libcamera::Request::ReuseBuffers);
+    impl_->camera->queueRequest(request);
+    return;
+  }
 
   if (impl_->cb) {
     impl_->cb(std::move(f));
   }
 
+  ApplyRequestedFocusProfile(request);
   request->reuse(libcamera::Request::ReuseBuffers);
   impl_->camera->queueRequest(request);
 }
@@ -119,29 +181,28 @@ bool LibcameraCamera::Start(FrameCallback cb) {
 
   impl_->cm = std::make_unique<libcamera::CameraManager>();
   if (impl_->cm->start()) {
-    std::cerr << "libcamera CameraManager start failed\n";
+    log::Error() << "libcamera CameraManager start failed";
     impl_->running = false;
     return false;
   }
   if (impl_->cm->cameras().empty()) {
-    std::cerr << "No libcamera cameras found\n";
+    log::Error() << "No libcamera cameras found";
     impl_->cm->stop();
     impl_->running = false;
     return false;
   }
   impl_->camera = impl_->cm->cameras().front();
   if (impl_->camera->acquire()) {
-    std::cerr << "Camera acquire failed\n";
+    log::Error() << "Camera acquire failed";
     impl_->cm->stop();
     impl_->running = false;
     return false;
   }
 
-  // Configure single stream (viewfinder).
   impl_->config =
       impl_->camera->generateConfiguration({libcamera::StreamRole::Viewfinder});
   if (!impl_->config || impl_->config->empty()) {
-    std::cerr << "generateConfiguration failed\n";
+    log::Error() << "generateConfiguration failed";
     impl_->camera->release();
     impl_->cm->stop();
     impl_->running = false;
@@ -155,8 +216,9 @@ bool LibcameraCamera::Start(FrameCallback cb) {
   sc.bufferCount = 4;
 
   const libcamera::CameraConfiguration::Status v = impl_->config->validate();
+  LogStreamConfig("post-validate", sc);
   if (v == libcamera::CameraConfiguration::Invalid) {
-    std::cerr << "Camera configuration invalid\n";
+    log::Error() << "Camera configuration invalid";
     impl_->camera->release();
     impl_->cm->stop();
     impl_->running = false;
@@ -164,18 +226,41 @@ bool LibcameraCamera::Start(FrameCallback cb) {
   }
 
   if (impl_->camera->configure(impl_->config.get())) {
-    std::cerr << "Camera configure failed\n";
+    log::Error() << "Camera configure failed";
     impl_->camera->release();
     impl_->cm->stop();
     impl_->running = false;
     return false;
   }
 
+  LogStreamConfig("post-configure", impl_->config->at(0));
+  int src_bpp = 0;
+  PackedRgbOrder src_order = PackedRgbOrder::Rgb;
+  if (!ResolvePackedFormat(impl_->config->at(0).pixelFormat, src_bpp, src_order)) {
+    log::Error() << "Unsupported libcamera pixel format negotiated: "
+                 << impl_->config->at(0).pixelFormat.toString()
+                 << ". Expected RGB888 or BGR888. "
+                 << "If your pipeline negotiates a 4-byte format, add explicit "
+                 << "normalization before emitting Frame::Rgb888.";
+    impl_->camera->release();
+    impl_->cm->stop();
+    impl_->running = false;
+    return false;
+  }
+  impl_->src_bpp = src_bpp;
+  impl_->src_order = kForceLiveRbSwap ? PackedRgbOrder::Bgr : src_order;
+  if (kForceLiveRbSwap) {
+    log::Debug() << "libcamera live color fix: forcing source channel order to "
+                 << PackedOrderName(impl_->src_order)
+                 << " before RGB888 normalization"
+                 << " (negotiated order was " << PackedOrderName(src_order) << ")";
+  }
+
   impl_->stream = sc.stream();
   impl_->allocator =
       std::make_unique<libcamera::FrameBufferAllocator>(impl_->camera);
   if (impl_->allocator->allocate(impl_->stream) < 0) {
-    std::cerr << "FrameBufferAllocator allocate failed\n";
+    log::Error() << "FrameBufferAllocator allocate failed";
     impl_->camera->release();
     impl_->cm->stop();
     impl_->running = false;
@@ -198,18 +283,21 @@ bool LibcameraCamera::Start(FrameCallback cb) {
     impl_->requests.push_back(std::move(req));
   }
   if (impl_->requests.empty()) {
-    std::cerr << "No libcamera requests created\n";
+    log::Error() << "No libcamera requests created";
     Stop();
     return false;
   }
 
   if (impl_->camera->start()) {
-    std::cerr << "Camera start failed\n";
+    log::Error() << "Camera start failed";
     Stop();
     return false;
   }
 
+  log::Debug() << "libcamera focus profile: AfModeContinuous, AfRangeMacro, "
+                  "AfSpeedFast";
   for (auto& req : impl_->requests) {
+    ApplyRequestedFocusProfile(req.get());
     impl_->camera->queueRequest(req.get());
   }
 

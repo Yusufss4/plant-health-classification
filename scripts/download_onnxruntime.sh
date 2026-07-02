@@ -6,7 +6,7 @@
 set -euo pipefail
 
 PLATFORM="${1:-linux-x64}"
-VERSION="${2:-1.17.3}"
+VERSION="${2:-1.24.4}"
 NAME="onnxruntime-${PLATFORM}-${VERSION}"
 URL="https://github.com/microsoft/onnxruntime/releases/download/v${VERSION}/${NAME}.tgz"
 DEST="${ONNXRUNTIME_DOWNLOAD_DIR:-$(pwd)/third_party/onnxruntime}"

@@ -1,0 +1,327 @@
+\documentclass[a4paper,onesided,12pt]{report}
+\usepackage{styles/fbe_tez}
+\usepackage[utf8]{inputenc} % Unicode (e.g. Turkish); utf8x removed from TeX Live 2020+
+\renewcommand{\labelenumi}{(\roman{enumi})}
+\usepackage{amsmath, amsthm, amssymb}
+ % Some extra symbols
+\usepackage[bottom]{footmisc}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage{longtable}
+\graphicspath{{figures/}} % Graphics will be here
+
+%\usepackage{xtab}
+\usepackage{multirow}
+\usepackage{subfigure}
+\usepackage{float}
+\usepackage{placeins}
+%\pagestyle{empty}
+%\includeonly{introduction} % To only process the given file
+
+\newtheorem{thm}{Theorem}[chapter]
+\newtheorem{prop}[thm]{Proposition}
+\newtheorem{lem}[thm]{Lemma}
+\newtheorem{cor}[thm]{Corollary}
+% COVER PAGE
+\title{Edge deployment: Plant health classification (MobileNet V3) on Raspberry Pi Zero 2 W}
+\author{Yusuf Savaş \\ Advisor: Fikret Gürgen}
+
+\begin{document}
+
+\pagenumbering{roman}
+\maketitle{}
+\tableofcontents
+
+\pagenumbering{arabic}
+
+\chapter{Introduction}
+
+Plant pests and diseases destroy up to \textbf{40\%} of global crop production each year and cost the world economy about \textbf{US\$220 billion} annually~\cite{fao2021pests}; major staple crops see \textbf{10--40\%} yield losses to pathogens~\cite{savary2019global}. Catching disease early from a leaf image enables timely treatment, less blanket pesticide use, and better yield protection, especially for smallholders who rarely have fast access to a pathologist.
+
+We build an \textbf{edge-deployed} classifier on a \textbf{Raspberry Pi Zero 2 W}~\cite{raspberrypi_zero2w}: a live camera frame is strictly labeled \textbf{healthy}, \textbf{diseased}, or \textbf{background} (non-leaf) using \textbf{MobileNet V3}~\cite{howard2019mobilenetv3}. The model is exported to \textbf{ONNX}~\cite{onnx} and executed via \textbf{ONNX Runtime}~\cite{onnxruntime} in a highly memory-efficient \textbf{C++} pipeline designed for constrained hardware. The main focus points are:
+\begin{itemize}
+\item Train on public leaf and background data, then deploy the exact same preprocessing and graph natively on the Pi.
+\item Maximize throughput on resource-constrained hardware using a multi-threaded \textbf{FP32} pipeline.
+\item Expose real-time results through a \textbf{web portal} and validate with a \textbf{real camera}, a 3D-printed test bench, and field-style captures.
+\end{itemize}
+
+\chapter{Description}
+
+\section{Hardware}
+
+The \textbf{Raspberry Pi Zero 2 W} was chosen as a \textbf{low-cost, resource-constrained} edge node. Because it relies heavily on an older architecture without dedicated Neural Processing Units (NPUs) or modern integer math extensions, the pipeline is highly optimized for memory and standard floating-point operations.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{|l|p{0.62\textwidth}|}
+\hline
+\textbf{Item} & \textbf{Detail} \\
+\hline
+CPU & Quad-core ARM Cortex-A53 ($\sim$1\,GHz, ARMv8.0-A) \\
+\hline
+RAM & 512\,MB \\
+\hline
+Inference & CPU only (no GPU or NPU) \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Software}
+
+\begin{itemize}
+\item \textbf{Model}: \textbf{MobileNet V3}~\cite{howard2019mobilenetv3} exported to \textbf{ONNX}~\cite{onnx} for deployment.
+\item \textbf{Runtime}: \textbf{ONNX Runtime}~\cite{onnxruntime} executed via a native \textbf{C++} API to prevent memory bloat.
+\item \textbf{Pipeline}: \textbf{Camera capture $\rightarrow$ NEON-accelerated ImageNet normalization $\rightarrow$ FP32 ONNX Inference $\rightarrow$ Temporal smoothing $\rightarrow$ Output}.
+\item \textbf{Web UI}: A \textbf{web portal} on the local network displaying the \textbf{live preview}, \textbf{predictions}, and \textbf{FPS throughput}.
+\end{itemize}
+
+\section{Use}
+
+In practice, the system continuously analyzes frames from the Pi Camera. For a \textbf{demo}, an operator opens the \textbf{web page} on a smartphone or laptop sharing the same Wi-Fi. By presenting \textbf{healthy} and \textbf{diseased} plants to the camera, the operator can view real-time classifications, model confidence, and system health metrics (FPS, CPU temperature). The background class enables the system to correctly reject non-leaf objects automatically.
+
+\section{Diagram}
+
+\IfFileExists{figures/system_architecture.pdf}{%
+  Figure~\ref{fig:system-architecture} shows the logical data flow.
+  \begin{figure}[h!]
+  \centering
+  \includegraphics[width=0.95\textwidth]{system_architecture.pdf}
+  \caption{System architecture: camera and files into preprocess, ONNX Runtime, web portal, and browser on the LAN.}
+  \label{fig:system-architecture}
+  \end{figure}
+}{%
+  \begin{quote}
+  \textit{Build the figure first: from \path{results/report/}, run \path{./render-mermaid.sh} (needs Node and \path{@mermaid-js/mermaid-cli}, or a global \path{mmdc}).}
+  \end{quote}
+}
+
+\chapter{Requirements}
+
+\section{Features}
+
+\begin{itemize}
+\item Provide a lightweight \textbf{web portal} to visualize \textbf{inference results} and \textbf{per-class confidence}.
+\item Expose \textbf{performance metrics}: \textbf{FPS}, \textbf{latency}, and \textbf{thermal data} updated iteratively.
+\item Support both \textbf{live camera streams} and \textbf{batch evaluation} of static datasets using the exact same C++ memory stack.
+\end{itemize}
+
+\textbf{Layers}
+
+\begin{table}[h!]
+\begin{center}
+\begin{tabular}{|l|p{9cm}|}
+\hline
+\textbf{Layer} & \textbf{Role} \\
+\hline
+\textbf{Presentation} & Web UI serving the MJPEG live stream, prediction status, and session summary. \\
+\hline
+\textbf{Application / API} & Serves the UI and pushes inference metrics (WebSocket/HTTP). \\
+\hline
+\textbf{Inference} & Evaluates the \textbf{MobileNet V3} graph using \textbf{ONNX Runtime} directly on the CPU. \\
+\hline
+\textbf{Acquisition} & Captures frames via libcamera or loads testing batches, feeding them to the preprocessor. \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\chapter{Designed System}
+
+\section{Architectural Choices}
+
+\begin{itemize}
+\item \textbf{MobileNet V3}~\cite{howard2019mobilenetv3} was selected because its depthwise separable convolutions offer a strong balance of accuracy and parameter efficiency (\textbf{1{,}519{,}906} parameters) for edge devices.
+\item \textbf{3-Class Topology}: Training strictly on a binary "healthy vs. diseased" split forces the model to produce false positives when viewing empty backgrounds. Expanding the architecture to include a generalized \textbf{background} class resolves this cleanly without requiring secondary OpenCV gating loops.
+\item \textbf{FP32 Over INT8}: While integer quantization (INT8) is generally preferred on the edge, the Pi Zero 2 W's Cortex-A53 lacks modern \texttt{SDOT} and \texttt{UDOT} hardware instructions. Consequently, INT8 operations fall back to slower software routines, incurring significant Quantize/Dequantize (QDQ) overhead. Therefore, a multi-threaded \textbf{FP32} pipeline utilizing mature NEON FMA instructions provides the highest throughput and preserves accuracy.
+\item \textbf{Native C++}: Avoiding Python in the deployment environment keeps the memory footprint well below the 512\,MB ceiling, preventing Out-Of-Memory (OOM) crashes.
+\end{itemize}
+
+\section{Inference Pipeline}
+
+\begin{enumerate}
+\item \textbf{Input}: Libcamera pulls a continuous RGB stream from the Camera Module 3.
+\item \textbf{Preprocess}: The C++ pipeline uses ARM NEON vector instructions to quickly resize the frame to $224\times224$ and normalize it against standard ImageNet statistics, formatting it strictly into an NCHW tensor buffer.
+\item \textbf{Inference}: ONNX Runtime executes the FP32 graph across 4 threads.
+\item \textbf{Post-Process}: Softmax and argmax isolate the top prediction. Exponential Moving Average (EMA) smoothing is applied across frames to eliminate momentary visual flickering.
+\end{enumerate}
+
+\chapter{Implementation}
+
+The system is developed in two discrete stages. The model is trained and exported on a CUDA-enabled development workstation. That frozen graph is then deployed to the native C++ runtime on the Raspberry Pi.
+
+\section{Data Preparation}
+
+The classifier operates on a three-class dataset: \textbf{healthy}, \textbf{diseased}, and \textbf{background}.
+
+The leaf imagery relies on \textbf{PlantVillage}~\cite{hughes2015plantvillage}. The original 38 fine-grained crop/disease labels are collapsed into a robust binary health signal: healthy leaves become \textbf{healthy}, while affected leaves become \textbf{diseased}. 
+
+To prevent the model from confidently hallucinating diseases when presented with empty tables or hands, a \textbf{background} class was synthesized from \textbf{COCO 2017}~\cite{lin2014coco} and field-capture negatives. The combined dataset is split \textbf{70\,/\,15\,/\,15}, cleanly separating training, validation, and testing logic.
+
+\begin{figure}[H]
+\centering
+\subfigure[PlantVillage leaf samples (healthy / diseased)]{\includegraphics[width=0.46\textwidth]{dataset-plant-village.png}}
+\hfill
+\subfigure[COCO 2017 background samples]{\includegraphics[width=0.46\textwidth]{dataset-coco.png}}
+\caption{Dataset sources. The non-leaf scenes provide the critical background class for real-world camera deployments.}
+\label{fig:datasets}
+\end{figure}
+\FloatBarrier
+
+\section{Training Pipeline}
+
+The network leverages transfer learning, starting from a \textbf{MobileNet V3-small}~\cite{howard2019mobilenetv3} backbone pretrained on ImageNet. The original 1,000-class head is replaced by a custom 3-class linear head. 
+
+During the 15-epoch training loop, frames are augmented with horizontal flips, $\pm15^\circ$ rotations, and color jitter. A weighted sampler ensures balanced batches across the three categories. Only the checkpoint with the lowest validation loss is preserved and evaluated against the held-out test split.
+
+\IfFileExists{figures/training_pipeline.pdf}{%
+  \begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth,height=0.52\textheight,keepaspectratio]{training_pipeline.pdf}
+  \caption{Training pipeline: from data augmentation through transfer learning into validation-based checkpointing.}
+  \label{fig:training-pipeline}
+  \end{figure}
+}{%
+  \begin{quote}
+  \textit{Build the figure first: from \path{results/report/}, run \path{./render-mermaid.sh}.}
+  \end{quote}
+}
+\FloatBarrier
+
+\section{ONNX Export}
+
+The optimal PyTorch model is converted to the \textbf{ONNX}~\cite{onnx} standard. This separation of concerns allows the Raspberry Pi to execute a frozen, mathematically identical graph without requiring heavy Python machine learning frameworks. The deployment graph expects a statically sized $224\times224$ input tensor and outputs three class logits.
+
+\section{On-device Runtime (C++)}
+
+The edge stack is programmed in \textbf{C++} using the \textbf{ONNX Runtime}~\cite{onnxruntime} API. Memory operations are aggressively zero-allocation in the hot loop to maintain stability on 512\,MB RAM.
+
+\textbf{Capture.} The Pi Camera Module 3 feeds frames through the \textbf{libcamera}~\cite{libcamera} stack.
+
+\textbf{Preprocessing.} A fused routine resizes the image and normalizes it with ImageNet standard deviations. Using \textbf{NEON} vector instructions (\texttt{vfmaq\_f32}), this routine prevents data-preparation overhead from bottlenecking the CPU.
+
+\textbf{Inference \& Serving.} ONNX Runtime manages the FP32 forward pass. An embedded HTTP server exposes the live UI, broadcasting an MJPEG preview and sending continuous Server-Sent Events (SSE) detailing predictions, smoothed probabilities, and hardware temperatures.
+
+\IfFileExists{figures/ondevice_runtime.pdf}{%
+  \begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth,height=0.48\textheight,keepaspectratio]{ondevice_runtime.pdf}
+  \caption{On-device runtime architecture executing on the Pi Zero 2 W.}
+  \label{fig:ondevice-runtime}
+  \end{figure}
+}{%
+  \begin{quote}
+  \textit{Build the figure first: from \path{results/report/}, run \path{./render-mermaid.sh}.}
+  \end{quote}
+}
+\FloatBarrier
+
+\section{Web Portal and Test Bench}
+
+The local web portal allows users to visualize real-time interactions with the model. To ensure repeatable, scientific validation outside of the dataset imagery, a 3D-printed PLA test bench was designed. It holds the camera at a strict height and angle, standardizing framing and lighting for physical leaf samples.
+
+\begin{figure}[H]
+\centering
+\subfigure[CAD front]{\includegraphics[width=0.42\textwidth]{3d-design-front.png}}
+\hfill
+\subfigure[CAD back]{\includegraphics[width=0.42\textwidth]{3d-design-back.png}}
+\caption{3D-printed (PLA) test-bench camera stand, CAD model.}
+\label{fig:testbench-cad}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{3d-design-real.jpg}
+\caption{Printed test bench in use with the Pi camera and a leaf sample.}
+\label{fig:testbench-real}
+\end{figure}
+\FloatBarrier
+
+\chapter{Results}
+
+This chapter reports inference benchmarks for the edge device (Raspberry Pi Zero 2 W running ONNX Runtime in native C++) compared against a development workstation reference (PyTorch on a Dev PC with an NVIDIA RTX 3050).
+
+The edge deployments were tested using the complete 3-class dataset (12,606 images) to validate the final pipeline, alongside a legacy 2-class split (8,106 images) for baseline comparisons. Resulst only include the pipeline for processing the images, not encoding them for the web portal.
+So results are comparasion for the model and model implementation.
+
+\section{Reference Baseline (Dev PC)}
+
+Before moving to the edge, the model was evaluated on high-performance desktop hardware to establish a maximum theoretical baseline.
+\begin{itemize}
+    \item \textbf{Accuracy:} 99.80\%
+    \item \textbf{Throughput:} 751.23 images/second
+\end{itemize}
+
+\section{On-Device Performance (Raspberry Pi Zero 2 W)}
+
+The core objective was to balance accuracy and latency on the memory-constrained Raspberry Pi. We evaluated standard floating-point (FP32) execution against integer-quantized (INT8/QDQ) execution across different threading configurations.
+
+\begin{table}[h!]
+\begin{center}
+\caption{Edge Deployment Summary}
+\begin{tabular}{|l|l|l|l|}
+\hline
+\textbf{Build Configuration} & \textbf{Split} & \textbf{Accuracy} & \textbf{Throughput} \\
+\hline
+\textbf{FP32 (1 thread)} & 2-class (8,106 images) & 99.83\% & 8.03 img/s \\
+\hline
+\textbf{FP32 (4 threads)} & 3-class (12,606 images) & 99.81\% & 15.73 img/s \\
+\hline
+\textbf{INT8 (1 thread)} & 3-class (12,606 images) & 97.21\% & 6.04 img/s \\
+\hline
+\textbf{INT8 (4 threads)} & 3-class (12,606 images) & 97.05\% & 9.83 img/s \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\section{Final Classification Accuracy}
+
+To illustrate the model's reliability in its optimal edge state, the confusion matrix below details the exact predictions for the final \textbf{FP32 (3-class)} model. This model yielded highly balanced per-class F1 scores: Healthy (0.9948), Diseased (0.9984), and Background (0.9993).
+
+\begin{table}[h!]
+\begin{center}
+\caption{Confusion Matrix (FP32, 3-class)}
+\begin{tabular}{|l|r|r|r|}
+\hline
+\textbf{Actual \textbackslash\ Predicted} & \textbf{Healthy} & \textbf{Diseased} & \textbf{Background} \\
+\hline
+\textbf{Healthy} & 2,215 & 5 & 2 \\
+\hline
+\textbf{Diseased} & 13 & 5,871 & 0 \\
+\hline
+\textbf{Background} & 3 & 1 & 4,496 \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\section{Architectural Hardware Constraints}
+
+The benchmark results highlight a critical hardware reality regarding INT8 quantization on older architectures.
+
+\begin{itemize}
+    \item \textbf{The FP32 Advantage:} The 4-thread FP32 configuration delivered the strongest performance, maintaining near-perfect accuracy (99.81\%) while nearly doubling the throughput (15.73 images/second) compared to a single thread.
+    \item \textbf{The INT8 Speed Penalty:} Despite being a quantization method designed for speed, INT8 tested roughly 33\% slower than the FP32 baseline on a single thread. It also resulted in a 2.5--2.7\% drop in accuracy.
+    \item \textbf{Hardware Limitation:} The Pi Zero 2 W uses a Cortex-A53 CPU, which physically lacks the SDOT and UDOT hardware instructions required to accelerate integer dot-products. Without these instructions, INT8 is forced onto slower software fallback paths, while FP32 fully utilizes the processor's mature NEON pipelines.
+\end{itemize}
+
+\chapter{Conclusions and Future Work}
+
+We successfully developed and deployed a highly accurate ~99.8\% MobileNet V3 classification system natively on a Raspberry Pi Zero 2 W. By formatting the model into a 3-class architecture (Healthy, Diseased, Background), the pipeline robustly rejects non-leaf imagery without requiring secondary, memory-intensive detection models.
+
+Using a native C++ runtime and carefully tuned multi-threading, end to end pipeline processes frames and serves results at nearly \textbf{8 images per second}. (Encoding latency is 31ms and inference latency is 68ms.) While INT8 quantization was aggressively tested during development, the specific Cortex-A53 processor of the Pi Zero 2 W lacks the hardware dot-product instructions (\texttt{SDOT}/\texttt{UDOT}) required to accelerate integer math. Consequently, the overhead of converting floats to integers inside the network makes INT8 slower than standard execution. Retaining the model in FP32 allowed the engine to leverage mature NEON FMA instructions, proving to be the optimal choice for this specific silicon.
+
+Furthermore, when testing with real leaves in live environments, we observed that the camera's field of view (FOV) and variations in background color could occasionally affect the boundary between healthy and diseased classifications. To mitigate this domain shift and achieve the most reliable edge performance, future iterations of the model should ideally be trained or fine-tuned on a dataset captured directly by the specific camera hardware used for deployment.
+
+\section{Future work}
+
+\begin{itemize}
+\item \textbf{Field validations}: Expand testing beyond the 3D-printed bench into active greenhouses, exposing the model to natural, varied lighting over extended periods.
+\item \textbf{Calibration dynamics}: Implement confidence thresholds to further tune the boundary between diseased and healthy states based on seasonal plant variations.
+\end{itemize}
+
+\bibliographystyle{styles/fbe_tez_v11}
+\bibliography{references}
+
+\end{document}

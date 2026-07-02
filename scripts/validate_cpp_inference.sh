@@ -3,7 +3,7 @@
 # Requires: ONNX exported, phc_infer_mobilenet built, python deps, test image.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ONNX="${ONNX:-$ROOT/checkpoints/mobilenet_v3.onnx}"
+ONNX="${ONNX:-$ROOT/checkpoints/mobilenet_v3_3cls.onnx}"
 BIN="${TMPDIR:-/tmp}/mobilenet_validate_input.bin"
 IMAGE="${1:-}"
 INFER_BIN="${2:-}"
@@ -15,7 +15,7 @@ Usage: scripts/validate_cpp_inference.sh <image> <infer_bin>
 Compares Python ORT reference logits with C++ logits using the same input tensor.
 
 Environment:
-  ONNX               Override model path (default: checkpoints/mobilenet_v3.onnx)
+  ONNX               Override model path (default: checkpoints/mobilenet_v3_3cls.onnx)
 EOF
 }
 

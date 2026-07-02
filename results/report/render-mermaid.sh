@@ -27,3 +27,9 @@ render_one() {
 
 render_one "mermaid/system_architecture.mmd" "figures/system_architecture.pdf"
 echo "Wrote figures/system_architecture.pdf"
+
+render_one "mermaid/training_pipeline.mmd" "figures/training_pipeline.pdf"
+echo "Wrote figures/training_pipeline.pdf"
+
+render_one "mermaid/ondevice_runtime.mmd" "figures/ondevice_runtime.pdf"
+echo "Wrote figures/ondevice_runtime.pdf"

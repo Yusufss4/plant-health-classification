@@ -1,37 +1,106 @@
-// Live camera -> preprocess -> inference -> JPEG + JSON artifacts for static web UI.
-//
-// Build with:
-//   cmake -DENABLE_LIBCAMERA=ON ...
-//
-// Serve the artifact directory (and copy web/live/index.html there) with e.g.:
-//   python3 -m http.server 8080 --bind 0.0.0.0 --directory /path/to/artifacts
+// Live camera -> preprocess -> inference -> in-process HTTP preview. See cpp/README.md.
 
 #include "../../src/app_runtime/live_pipeline.hpp"
 #include "../../src/camera_libcamera/libcamera_camera.hpp"
-#include "../../src/display_file/file_artifact_display.hpp"
+#include "../../src/core/phc_log.hpp"
 #include "../../src/inference_ort/ort_engine.hpp"
+#include <onnxruntime_c_api.h>
 #include "../../src/preprocess/mobilenet_preprocess.hpp"
+#include "../../src/server_http/http_stream_display.hpp"
 
 #include <chrono>
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
+#include <string>
 #include <thread>
 
+namespace {
+
+void PrintUsage(const char* argv0) {
+  std::cerr << "Usage: " << argv0
+            << " <model.onnx> [--port PORT] [--bind HOST] [-h|--help]\n"
+            << "\n"
+            << "  --port PORT   Listen port, 1-65535 (default 8080)\n"
+            << "  --bind HOST   Bind address (default 0.0.0.0)\n"
+            << "  -h, --help    Show this help\n";
+}
+
+bool ParseInt(const std::string& s, int& out) {
+  try {
+    size_t pos = 0;
+    int v = std::stoi(s, &pos);
+    if (pos != s.size()) {
+      return false;
+    }
+    out = v;
+    return true;
+  } catch (...) {
+    return false;
+  }
+}
+
+bool ParsePort(const char* s, int& out) {
+  if (!ParseInt(s, out)) {
+    return false;
+  }
+  return out >= 1 && out <= 65535;
+}
+
+}  // namespace
+
 int main(int argc, char** argv) {
-  if (argc < 2 || argc > 3) {
-    std::cerr << "Usage: " << argv[0] << " <model.onnx> [artifact_dir]\n";
+  phc::log::ConfigureThirdPartyLogLevels();
+
+  if (argc < 2) {
+    PrintUsage(argv[0]);
     return 1;
   }
   const std::string model_path = argv[1];
 
-  phc::FileArtifactDisplayConfig artifact_cfg;
-  if (argc >= 3) {
-    artifact_cfg.output_dir = argv[2];
+  phc::HttpStreamDisplayConfig disp_cfg;
+
+  for (int i = 2; i < argc; ++i) {
+    const std::string a = argv[i];
+    auto need_value = [&](const char* flag) -> const char* {
+      if (i + 1 >= argc) {
+        std::cerr << "Missing value for " << flag << "\n";
+        return nullptr;
+      }
+      return argv[++i];
+    };
+    if (a == "--port") {
+      const char* v = need_value("--port");
+      if (!v) return 1;
+      if (!ParsePort(v, disp_cfg.port)) {
+        int probe = 0;
+        if (ParseInt(v, probe) && (probe < 1 || probe > 65535)) {
+          std::cerr << "Port out of range (must be 1-65535): " << v << "\n";
+        } else {
+          std::cerr << "Invalid --port value: " << v << "\n";
+        }
+        return 1;
+      }
+    } else if (a == "--bind") {
+      const char* v = need_value("--bind");
+      if (!v) return 1;
+      disp_cfg.bind_host = v;
+    } else if (a == "-h" || a == "--help") {
+      PrintUsage(argv[0]);
+      return 0;
+    } else {
+      std::cerr << "Unknown argument: " << a << "\n";
+      PrintUsage(argv[0]);
+      return 1;
+    }
   }
 
   phc::LibcameraCamera cam(phc::LibcameraConfig{});
-  phc::FileArtifactDisplay disp(artifact_cfg);
+  phc::HttpStreamDisplay disp(disp_cfg);
   phc::MobilenetPreprocessor pp;
-  phc::OrtInferenceEngine engine(model_path);
+  phc::OrtInferenceEngine::Options engine_opts;
+  engine_opts.ort_log_level = ORT_LOGGING_LEVEL_ERROR;
+  phc::OrtInferenceEngine engine(model_path, engine_opts);
 
   phc::LivePipelineConfig cfg;
   cfg.display_width = 640;
@@ -39,12 +108,12 @@ int main(int argc, char** argv) {
 
   phc::LivePipeline pipeline(cam, disp, pp, engine, cfg);
   if (!pipeline.Start()) {
-    std::cerr << "Failed to start pipeline\n";
+    phc::log::Error() << "Failed to start pipeline";
     return 1;
   }
 
-  std::cout << "Writing preview + JSON to: " << artifact_cfg.output_dir << "\n";
-  std::cout << "Running. Press Ctrl+C to exit.\n";
+  phc::log::Info() << "Live preview ready: http://" << disp_cfg.bind_host << ":"
+                   << disp.bound_port() << "/";
   for (;;) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
